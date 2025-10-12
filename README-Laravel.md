@@ -897,5 +897,1001 @@ php artisan migrate:refresh
 php artisan migrate:fresh --seed
 ```
 
-This covers key Laravel concepts. Would you like me to continue with more sections?
+### Q11. What are Laravel Events and Listeners?
+**Answer:** Events provide a simple observer pattern implementation.
+
+**Example:**
+```php
+// Event
+class OrderPlaced
+{
+    public $order;
+    public function __construct(Order $order) {
+        $this->order = $order;
+    }
+}
+
+// Listener
+class SendOrderConfirmation
+{
+    public function handle(OrderPlaced $event) {
+        Mail::to($event->order->customer->email)
+            ->send(new OrderConfirmationMail($event->order));
+    }
+}
+
+// Usage
+event(new OrderPlaced($order));
+```
+
+### Q12. Explain Laravel Collections
+**Answer:** Collections wrap arrays with helpful methods.
+
+```php
+$users = User::all();
+$activeUsers = $users->where('active', true);
+$names = $users->pluck('name');
+$grouped = $users->groupBy('role');
+$sorted = $users->sortBy('name');
+```
+
+### Q13. What are Policies and Gates?
+**Answer:** Authorization logic organization.
+
+```php
+// Policy
+class PostPolicy {
+    public function update(User $user, Post $post) {
+        return $user->id === $post->user_id;
+    }
+}
+
+// Usage
+$this->authorize('update', $post);
+```
+
+### Q14. Laravel Notifications
+**Answer:** Multi-channel notification system.
+
+```php
+class InvoicePaid extends Notification {
+    public function via($notifiable) {
+        return ['mail', 'database', 'slack'];
+    }
+    public function toMail($notifiable) {
+        return (new MailMessage)->line('Invoice paid!');
+    }
+}
+
+$user->notify(new InvoicePaid($invoice));
+```
+
+### Q15. Laravel Sanctum
+**Answer:** API authentication for SPAs and mobile apps.
+
+```php
+// Create token
+$token = $user->createToken('api-token')->plainTextToken;
+
+// Protected routes
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+    return $request->user();
+});
+```
+
+### Q16. Laravel Queues & Jobs - WHY and HOW?
+**Answer:** Queues allow you to defer time-consuming tasks (like sending emails, processing images, or calling external APIs) to be processed later, making your application feel faster to users.
+
+**Why Use Queues?**
+- Don't make users wait for slow operations
+- Handle tasks in background
+- Retry failed operations automatically
+- Process tasks during off-peak hours
+
+**Real-time Example:**
+```php
+// PROBLEM: Without Queue - User waits 5+ seconds
+public function register(Request $request)
+{
+    $user = User::create($request->all());
+    
+    // These slow operations block the response
+    Mail::to($user)->send(new WelcomeEmail($user));        // 2 seconds
+    $this->resizeProfileImage($user->image);               // 2 seconds
+    $this->notifyAdmins($user);                            // 1 second
+    $this->updateAnalytics($user);                         // 1 second
+    
+    return redirect('/dashboard'); // User waits 6 seconds!
+}
+
+// SOLUTION: With Queue - User waits <1 second
+public function register(Request $request)
+{
+    $user = User::create($request->all());
+    
+    // Queue these operations - happens in background
+    SendWelcomeEmail::dispatch($user);
+    ResizeImage::dispatch($user->image);
+    NotifyAdmins::dispatch($user);
+    UpdateAnalytics::dispatch($user);
+    
+    return redirect('/dashboard'); // User waits <1 second!
+}
+
+// Creating the Job
+php artisan make:job SendWelcomeEmail
+
+// app/Jobs/SendWelcomeEmail.php
+namespace App\Jobs;
+
+use App\Models\User;
+use App\Mail\WelcomeEmail;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Mail;
+
+class SendWelcomeEmail implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    
+    public $user;
+    public $tries = 3; // Retry 3 times if failed
+    public $timeout = 120; // Timeout after 2 minutes
+    
+    public function __construct(User $user)
+    {
+        $this->user = $user;
+    }
+    
+    public function handle()
+    {
+        // This runs in background worker
+        Mail::to($this->user->email)
+            ->send(new WelcomeEmail($this->user));
+    }
+    
+    // If job fails after all retries
+    public function failed(\Throwable $exception)
+    {
+        // Send notification to admin
+        // Log the error
+        \Log::error('Failed to send welcome email', [
+            'user_id' => $this->user->id,
+            'error' => $exception->getMessage()
+        ]);
+    }
+}
+
+// Dispatching with delay
+SendWelcomeEmail::dispatch($user)->delay(now()->addMinutes(10));
+
+// Dispatching to specific queue
+SendWelcomeEmail::dispatch($user)->onQueue('emails');
+
+// Chain jobs - execute in sequence
+Bus::chain([
+    new ProcessOrder($order),
+    new ChargeCustomer($order),
+    new SendReceipt($order),
+])->dispatch();
+
+// Run queue worker
+php artisan queue:work
+php artisan queue:work --queue=emails,default --tries=3
+```
+
+### Q17. Task Scheduling
+```php
+// app/Console/Kernel.php
+protected function schedule(Schedule $schedule) {
+    $schedule->command('emails:send')->daily();
+    $schedule->call(function () {
+        DB::table('recent')->delete();
+    })->hourly();
+}
+```
+
+### Q18. Form Requests
+```php
+class StorePostRequest extends FormRequest {
+    public function rules() {
+        return ['title' => 'required|max:255'];
+    }
+}
+```
+
+### Q19. Resource Controllers
+```php
+Route::resource('posts', PostController::class);
+// Generates: index, create, store, show, edit, update, destroy
+```
+
+### Q20. API Resources
+```php
+class UserResource extends JsonResource {
+    public function toArray($request) {
+        return ['id' => $this->id, 'name' => $this->name];
+    }
+}
+```
+
+### Q21. Blade Components
+```php
+// Creating: php artisan make:component Alert
+<x-alert type="error" :message="$message" />
+```
+
+### Q22. View Composers
+```php
+View::composer('*', function ($view) {
+    $view->with('user', auth()->user());
+});
+```
+
+### Q23. Middleware Groups
+```php
+protected $middlewareGroups = [
+    'web' => [StartSession::class, VerifyCsrfToken::class],
+    'api' => ['throttle:60,1', 'auth:sanctum']
+];
+```
+
+### Q24. Rate Limiting
+```php
+RateLimiter::for('api', function (Request $request) {
+    return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+});
+```
+
+### Q25. Database Transactions
+```php
+DB::transaction(function () {
+    DB::update('update users set votes = 1');
+    DB::delete('delete from posts');
+});
+```
+
+### Q26. Eager Loading - WHY is it critical?
+**Answer:** Eager loading solves the N+1 query problem, which can kill your application's performance. Without it, displaying 100 posts could execute 101+ database queries!
+
+**The Problem (N+1 Queries):**
+```php
+// BAD: This executes 101 queries for 100 posts!
+$posts = Post::all(); // 1 query
+
+foreach ($posts as $post) {
+    echo $post->author->name; // 1 query PER post = 100 queries!
+}
+// Total: 1 + 100 = 101 queries! 😱
+
+// WHY this is bad:
+// - Slow page load (multiple database round trips)
+// - High database load
+// - Poor user experience
+// - Scalability issues
+```
+
+**The Solution (Eager Loading):**
+```php
+// GOOD: This executes only 2 queries for 100 posts!
+$posts = Post::with('author')->get(); // 2 queries total
+// Query 1: SELECT * FROM posts
+// Query 2: SELECT * FROM users WHERE id IN (1,2,3,...)
+
+foreach ($posts as $post) {
+    echo $post->author->name; // No query! Data already loaded
+}
+// Total: 2 queries only! ⚡
+
+// Real-world example: Blog post listing
+public function index()
+{
+    // Load posts with author, category, and comment count
+    $posts = Post::with(['author', 'category'])
+        ->withCount('comments')
+        ->latest()
+        ->paginate(20);
+    
+    // In view:
+    // @foreach($posts as $post)
+    //     {{ $post->author->name }}  // No extra query!
+    //     {{ $post->category->name }} // No extra query!
+    //     {{ $post->comments_count }} comments
+    // @endforeach
+    
+    return view('posts.index', compact('posts'));
+}
+
+// Nested eager loading
+$posts = Post::with(['author.profile', 'comments.user'])->get();
+// Loads posts, their authors, author profiles, comments, and comment users
+
+// Conditional eager loading
+$posts = Post::with(['author', 'comments' => function ($query) {
+    $query->where('approved', true)
+          ->orderBy('created_at', 'desc')
+          ->limit(5);
+}])->get();
+
+// Lazy eager loading (when you forgot to eager load)
+$posts = Post::all();
+if ($someCondition) {
+    $posts->load('author'); // Load afterwards
+}
+
+// Performance comparison:
+// Without eager loading: 0.5s per post × 100 = 50 seconds!
+// With eager loading: 0.1s total for all 100 posts!
+```
+
+### Q27. Query Scopes - WHY use them instead of repeating WHERE clauses?
+**Answer:** Query scopes help you reuse common query logic, making your code DRY (Don't Repeat Yourself) and easier to maintain.
+
+**The Problem (Code Duplication):**
+```php
+// BAD: Repeating the same logic everywhere
+// In PostController
+$posts = Post::where('status', 'published')
+    ->where('published_at', '<=', now())
+    ->get();
+
+// In HomeController
+$posts = Post::where('status', 'published')
+    ->where('published_at', '<=', now())
+    ->latest()
+    ->take(5)
+    ->get();
+
+// In API Controller
+$posts = Post::where('status', 'published')
+    ->where('published_at', '<=', now())
+    ->where('featured', true)
+    ->get();
+
+// PROBLEM:
+// - Repeated code (violates DRY principle)
+// - Hard to maintain (change logic in multiple places)
+// - Error-prone (easy to forget conditions)
+// - Less readable
+```
+
+**The Solution (Query Scopes):**
+```php
+// GOOD: Define once, use everywhere
+// app/Models/Post.php
+class Post extends Model
+{
+    // Local scope - reusable query logic
+    public function scopePublished($query)
+    {
+        return $query->where('status', 'published')
+                    ->where('published_at', '<=', now());
+    }
+    
+    public function scopeFeatured($query)
+    {
+        return $query->where('featured', true);
+    }
+    
+    public function scopeByAuthor($query, $authorId)
+    {
+        return $query->where('author_id', $authorId);
+    }
+    
+    public function scopePopular($query, $threshold = 1000)
+    {
+        return $query->where('views', '>=', $threshold);
+    }
+    
+    public function scopeRecent($query, $days = 7)
+    {
+        return $query->where('created_at', '>=', now()->subDays($days));
+    }
+}
+
+// Now use everywhere - clean and simple!
+// In PostController
+$posts = Post::published()->get();
+
+// In HomeController
+$posts = Post::published()->latest()->take(5)->get();
+
+// In API Controller
+$posts = Post::published()->featured()->get();
+
+// Chain multiple scopes
+$posts = Post::published()
+    ->featured()
+    ->popular()
+    ->recent()
+    ->latest()
+    ->paginate(15);
+
+// With parameters
+$posts = Post::published()
+    ->byAuthor($authorId)
+    ->popular(5000)
+    ->get();
+
+// Real-world example: E-commerce product filtering
+class Product extends Model
+{
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active')
+                    ->where('stock', '>', 0);
+    }
+    
+    public function scopeInCategory($query, $categoryId)
+    {
+        return $query->where('category_id', $categoryId);
+    }
+    
+    public function scopePriceRange($query, $min, $max)
+    {
+        return $query->whereBetween('price', [$min, $max]);
+    }
+    
+    public function scopeOnSale($query)
+    {
+        return $query->where('sale_price', '<', DB::raw('regular_price'));
+    }
+    
+    public function scopeHighRated($query, $minRating = 4.0)
+    {
+        return $query->where('average_rating', '>=', $minRating);
+    }
+}
+
+// Usage: Build complex queries easily
+$products = Product::active()
+    ->inCategory($categoryId)
+    ->priceRange(50, 500)
+    ->highRated(4.5)
+    ->orderBy('average_rating', 'desc')
+    ->paginate(20);
+
+// WHY this is better:
+// ✅ Write once, use everywhere
+// ✅ Easy to maintain - change in one place
+// ✅ More readable code
+// ✅ Chainable and flexible
+// ✅ Testable
+```
+
+### Q28. Accessors & Mutators - WHY transform data automatically?
+**Answer:** Accessors and Mutators allow you to format Eloquent attributes automatically when retrieving or setting them, without manually transforming data everywhere in your code.
+
+**Why Use Them?**
+- Automatic data formatting
+- Consistent transformations across the app
+- Cleaner controller code
+- Encapsulation of business logic
+
+**Real-time Example:**
+```php
+// PROBLEM: Without Accessors/Mutators - Manual transformations everywhere
+class User extends Model {}
+
+// In Controller 1
+$user = User::find(1);
+$fullName = $user->first_name . ' ' . $user->last_name; // Manual concat
+
+// In Controller 2
+$user = User::find(2);
+$fullName = $user->first_name . ' ' . $user->last_name; // Repeated!
+
+// In API
+$users = User::all()->map(function($user) {
+    return [
+        'name' => $user->first_name . ' ' . $user->last_name, // Again!
+        'email' => strtolower($user->email) // Manual transformation
+    ];
+});
+
+// When saving password
+$user->password = bcrypt($request->password); // Manual everywhere!
+
+// SOLUTION: With Accessors & Mutators - Automatic transformations
+class User extends Model
+{
+    // ACCESSOR: Get full name automatically
+    public function getFullNameAttribute()
+    {
+        return "{$this->first_name} {$this->last_name}";
+    }
+    
+    // ACCESSOR: Format email consistently
+    public function getEmailAttribute($value)
+    {
+        return strtolower($value);
+    }
+    
+    // ACCESSOR: Format phone number
+    public function getPhoneAttribute($value)
+    {
+        if (!$value) return null;
+        
+        // Format: (123) 456-7890
+        return sprintf('(%s) %s-%s',
+            substr($value, 0, 3),
+            substr($value, 3, 3),
+            substr($value, 6)
+        );
+    }
+    
+    // ACCESSOR: Calculate age from birthday
+    public function getAgeAttribute()
+    {
+        return $this->date_of_birth ? 
+            $this->date_of_birth->age : null;
+    }
+    
+    // ACCESSOR: Get profile image URL
+    public function getProfileImageUrlAttribute()
+    {
+        if ($this->profile_image) {
+            return Storage::url($this->profile_image);
+        }
+        return asset('images/default-avatar.png');
+    }
+    
+    // MUTATOR: Auto-hash password
+    public function setPasswordAttribute($value)
+    {
+        $this->attributes['password'] = bcrypt($value);
+    }
+    
+    // MUTATOR: Clean and format phone
+    public function setPhoneAttribute($value)
+    {
+        // Remove all non-numeric characters
+        $cleaned = preg_replace('/[^0-9]/', '', $value);
+        $this->attributes['phone'] = $cleaned;
+    }
+    
+    // MUTATOR: Capitalize name
+    public function setFirstNameAttribute($value)
+    {
+        $this->attributes['first_name'] = ucfirst(strtolower($value));
+    }
+    
+    // MUTATOR: Auto-lowercase email
+    public function setEmailAttribute($value)
+    {
+        $this->attributes['email'] = strtolower($value);
+    }
+}
+
+// Now use everywhere - clean code!
+// In Controller
+$user = User::find(1);
+echo $user->full_name;        // "John Doe" - automatic!
+echo $user->email;             // "john@example.com" - lowercase!
+echo $user->phone;             // "(123) 456-7890" - formatted!
+echo $user->age;               // 30 - calculated!
+echo $user->profile_image_url; // Full URL - automatic!
+
+// When saving
+$user = new User();
+$user->first_name = 'JOHN';           // Stored as "John"
+$user->email = 'John@Example.COM';    // Stored as "john@example.com"
+$user->password = 'secret123';        // Stored as bcrypt hash
+$user->phone = '(123) 456-7890';      // Stored as "1234567890"
+$user->save();
+
+// In API Response
+return UserResource::collection(User::all());
+// Every user automatically has:
+// - full_name (concatenated)
+// - formatted email (lowercase)
+// - formatted phone
+// - age (calculated)
+// - profile_image_url (with full path)
+
+// WHY this is better:
+// ✅ No manual transformations needed
+// ✅ Consistent data format everywhere
+// ✅ Single source of truth
+// ✅ Cleaner controller code
+// ✅ Easier to maintain
+// ✅ Automatic validation/formatting
+
+// Advanced example: Money formatting
+public function getPriceFormattedAttribute()
+{
+    return '$' . number_format($this->price, 2);
+}
+
+// Usage
+$product->price;           // 99.99
+$product->price_formatted; // "$99.99"
+```
+
+### Q29. Model Events
+```php
+class Post extends Model {
+    protected static function booted() {
+        static::creating(function ($post) {
+            $post->slug = Str::slug($post->title);
+        });
+    }
+}
+```
+
+### Q30. File Storage
+```php
+Storage::disk('s3')->put('file.jpg', $contents);
+$url = Storage::url('file.jpg');
+Storage::delete('file.jpg');
+```
+
+### Q31. Cache
+```php
+Cache::remember('users', 3600, function () {
+    return DB::table('users')->get();
+});
+Cache::forget('users');
+```
+
+### Q32. Session
+```php
+session(['key' => 'value']);
+$value = session('key');
+session()->flash('message', 'Success!');
+```
+
+### Q33. Validation Rules
+```php
+$request->validate([
+    'email' => 'required|email|unique:users',
+    'age' => 'required|integer|min:18|max:65',
+    'website' => 'nullable|url'
+]);
+```
+
+### Q34. Custom Validation
+```php
+Validator::extend('uppercase', function ($attribute, $value) {
+    return strtoupper($value) === $value;
+});
+```
+
+### Q35. Pagination
+```php
+$users = DB::table('users')->paginate(15);
+// In view: {{ $users->links() }}
+```
+
+### Q36. Soft Deletes
+```php
+class Post extends Model {
+    use SoftDeletes;
+}
+Post::withTrashed()->get();
+$post->restore();
+```
+
+### Q37. Database Seeding
+```php
+class DatabaseSeeder extends Seeder {
+    public function run() {
+        User::factory(50)->create();
+    }
+}
+```
+
+### Q38. Model Factories
+```php
+User::factory()->count(10)->create();
+User::factory()->unverified()->create();
+```
+
+### Q39. Broadcasting
+```php
+class OrderShipped implements ShouldBroadcast {
+    public function broadcastOn() {
+        return new PrivateChannel('orders.'.$this->order->id);
+    }
+}
+```
+
+### Q40. Laravel Mix
+```php
+mix.js('resources/js/app.js', 'public/js')
+   .sass('resources/sass/app.scss', 'public/css');
+```
+
+### Q41. Environment Configuration
+```php
+$debug = config('app.debug');
+$url = env('APP_URL', 'http://localhost');
+```
+
+### Q42. Helpers
+```php
+$value = array_get($array, 'key', 'default');
+$slug = str_slug('Laravel Framework');
+$url = route('profile', ['id' => 1]);
+```
+
+### Q43. HTTP Client
+```php
+$response = Http::post('http://example.com/users', [
+    'name' => 'Steve', 'role' => 'Network Administrator',
+]);
+```
+
+### Q44. Mail
+```php
+Mail::to($user)->send(new OrderShipped($order));
+```
+
+### Q45. Artisan Commands
+```php
+// Make: php artisan make:command SendEmails
+class SendEmails extends Command {
+    protected $signature = 'email:send {user}';
+    public function handle() {
+        $this->info('Sending emails!');
+    }
+}
+```
+
+### Q46. Localization
+```php
+// lang/en/messages.php: ['welcome' => 'Welcome']
+__('messages.welcome');
+@lang('messages.welcome')
+```
+
+### Q47. Encryption
+```php
+$encrypted = Crypt::encryptString('Hello');
+$decrypted = Crypt::decryptString($encrypted);
+```
+
+### Q48. Hashing
+```php
+$hashed = Hash::make('password');
+Hash::check('password', $hashed);
+```
+
+### Q49. URL Generation
+```php
+url('/posts/' . $post->id);
+route('posts.show', ['post' => $post]);
+action([UserController::class, 'index']);
+```
+
+### Q50. Redirect
+```php
+return redirect('/home');
+return redirect()->route('profile');
+return redirect()->back()->withInput();
+```
+
+### Q51. Response Types
+```php
+return response()->json(['name' => 'John']);
+return response()->download($pathToFile);
+return response()->view('view', $data);
+```
+
+### Q52. Cookie
+```php
+Cookie::queue('name', 'value', $minutes);
+$value = Cookie::get('name');
+```
+
+### Q53. Error Handling
+```php
+try {
+    // Code
+} catch (Exception $e) {
+    report($e);
+    return false;
+}
+```
+
+### Q54. Logging
+```php
+Log::emergency($message);
+Log::alert($message);
+Log::critical($message);
+Log::error($message);
+```
+
+### Q55. Testing
+```php
+public function test_example() {
+    $response = $this->get('/');
+    $response->assertStatus(200);
+}
+```
+
+### Q56. Feature Tests
+```php
+$this->post('/posts', ['title' => 'Test']);
+$this->assertDatabaseHas('posts', ['title' => 'Test']);
+```
+
+### Q57. Mocking
+```php
+Storage::fake('photos');
+Mail::fake();
+Event::fake();
+```
+
+### Q58. Database Testing
+```php
+use RefreshDatabase;
+$this->seed();
+```
+
+### Q59. Middleware
+```php
+php artisan make:middleware CheckAge
+public function handle($request, Closure $next) {
+    if ($request->age <= 200) {
+        return redirect('home');
+    }
+    return $next($request);
+}
+```
+
+### Q60. CSRF Protection
+```php
+<form method="POST">
+    @csrf
+    <!-- Form fields -->
+</form>
+```
+
+### Q61. Mass Assignment
+```php
+protected $fillable = ['name', 'email'];
+protected $guarded = ['admin'];
+```
+
+### Q62. Relationships
+```php
+// One to One
+public function phone() { return $this->hasOne(Phone::class); }
+// One to Many
+public function posts() { return $this->hasMany(Post::class); }
+// Many to Many
+public function roles() { return $this->belongsToMany(Role::class); }
+```
+
+### Q63. Polymorphic Relations
+```php
+public function commentable() {
+    return $this->morphTo();
+}
+public function comments() {
+    return $this->morphMany(Comment::class, 'commentable');
+}
+```
+
+### Q64. Query Builder
+```php
+DB::table('users')->where('votes', '>', 100)->get();
+DB::table('users')->orderBy('name')->get();
+DB::table('users')->join('contacts', 'users.id', '=', 'contacts.user_id')->get();
+```
+
+### Q65. Raw Expressions
+```php
+$users = DB::table('users')
+    ->select(DB::raw('count(*) as user_count, status'))
+    ->groupBy('status')
+    ->get();
+```
+
+### Q66. Chunk Results
+```php
+DB::table('users')->orderBy('id')->chunk(100, function ($users) {
+    foreach ($users as $user) { //
+    }
+});
+```
+
+### Q67. Exists/Doesn't Exist
+```php
+if (User::where('email', $email)->exists()) { }
+if (User::where('email', $email)->doesntExist()) { }
+```
+
+### Q68. First or Create
+```php
+$user = User::firstOrCreate(['email' => $email]);
+$user = User::firstOrNew(['email' => $email]);
+```
+
+### Q69. Update or Create
+```php
+$flight = Flight::updateOrCreate(
+    ['departure' => 'Oakland', 'destination' => 'San Diego'],
+    ['price' => 99, 'discounted' => 1]
+);
+```
+
+### Q70. Increment/Decrement
+```php
+Post::where('id', 1)->increment('views');
+Post::where('id', 1)->decrement('likes', 5);
+```
+
+### Q71. Ordering
+```php
+$users = User::orderBy('name', 'desc')->get();
+$users = User::latest()->get();
+$users = User::oldest()->get();
+```
+
+### Q72. Grouping
+```php
+$users = User::groupBy('account_id')->having('account_id', '>', 100)->get();
+```
+
+### Q73. Conditional Clauses
+```php
+$users = User::when($role, function ($query, $role) {
+    return $query->where('role', $role);
+})->get();
+```
+
+### Q74. Subquery Selects
+```php
+$users = User::addSelect(['last_post' => Post::select('created_at')
+    ->whereColumn('user_id', 'users.id')
+    ->latest()
+    ->limit(1)
+])->get();
+```
+
+### Q75. Advanced Where
+```php
+$users = User::where([
+    ['status', '=', '1'],
+    ['subscribed', '<>', '1'],
+])->get();
+```
+
+### Q76. Where Between
+```php
+$users = User::whereBetween('votes', [1, 100])->get();
+$users = User::whereNotBetween('votes', [1, 100])->get();
+```
+
+### Q77. Where In
+```php
+$users = User::whereIn('id', [1, 2, 3])->get();
+$users = User::whereNotIn('id', [1, 2, 3])->get();
+```
+
+### Q78. Where Null
+```php
+$users = User::whereNull('updated_at')->get();
+$users = User::whereNotNull('updated_at')->get();
+```
+
+### Q79. Where Date
+```php
+$users = User::whereDate('created_at', '2025-01-01')->get();
+$users = User::whereMonth('created_at', '12')->get();
+$users = User::whereYear('created_at', '2025')->get();
+```
+
+### Q80. Where Column
+```php
+$users = User::whereColumn('first_name', 'last_name')->get();
+$users = User::whereColumn('updated_at', '>', 'created_at')->get();
+```
+
+**Total Laravel Questions: 80+ covering all major topics!**
 

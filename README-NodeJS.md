@@ -867,4 +867,544 @@ app.post('/api/users', async (req, res) => {
 export default app;
 ```
 
-This is the first part of the Node.js README. Would you like me to continue with more sections and then create the MongoDB README as well?
+### Q8. Event Emitters
+```javascript
+const EventEmitter = require('events');
+class MyEmitter extends EventEmitter {}
+const myEmitter = new MyEmitter();
+myEmitter.on('event', () => console.log('Event fired!'));
+myEmitter.emit('event');
+```
+
+### Q9. Streams
+```javascript
+const readStream = fs.createReadStream('input.txt');
+const writeStream = fs.createWriteStream('output.txt');
+readStream.pipe(writeStream);
+```
+
+### Q10. Buffers
+```javascript
+const buf = Buffer.from('Hello World');
+console.log(buf.toString('hex'));
+console.log(buf.toString('base64'));
+```
+
+### Q11. Child Processes
+```javascript
+const { exec, spawn, fork } = require('child_process');
+exec('ls -la', (error, stdout) => console.log(stdout));
+```
+
+### Q12. Cluster Module
+```javascript
+const cluster = require('cluster');
+if (cluster.isMaster) {
+    for (let i = 0; i < numCPUs; i++) cluster.fork();
+} else {
+    http.createServer(app).listen(3000);
+}
+```
+
+### Q13. Error-First Callbacks
+```javascript
+fs.readFile('file.txt', (err, data) => {
+    if (err) return console.error(err);
+    console.log(data);
+});
+```
+
+### Q14. Callback vs Promises
+```javascript
+// Callback
+function getData(callback) {
+    setTimeout(() => callback(null, 'data'), 1000);
+}
+// Promise
+function getData() {
+    return new Promise(resolve => setTimeout(() => resolve('data'), 1000));
+}
+```
+
+### Q15. Promise.all vs Promise.race
+```javascript
+Promise.all([promise1, promise2]); // All must complete
+Promise.race([promise1, promise2]); // First to complete
+```
+
+### Q16. Async Error Handling
+```javascript
+async function example() {
+    try {
+        const result = await asyncOperation();
+    } catch (error) {
+        console.error(error);
+    }
+}
+```
+
+### Q17. Process Object
+```javascript
+process.env.NODE_ENV
+process.argv
+process.cwd()
+process.exit(0)
+```
+
+### Q18. Global Objects
+```javascript
+__dirname  // Current directory
+__filename // Current file
+global     // Global namespace
+```
+
+### Q19. Timers
+```javascript
+setTimeout(fn, 1000);
+setInterval(fn, 1000);
+setImmediate(fn);
+```
+
+### Q20. File System Operations
+```javascript
+fs.readFile('file.txt', 'utf8', callback);
+fs.writeFile('file.txt', data, callback);
+fs.unlink('file.txt', callback);
+```
+
+### Q21. Path Module
+```javascript
+path.join('/foo', 'bar');
+path.resolve('foo', 'bar');
+path.extname('file.txt'); // .txt
+```
+
+### Q22. OS Module
+```javascript
+os.cpus();
+os.totalmem();
+os.freemem();
+os.platform();
+```
+
+### Q23. HTTP Module
+```javascript
+http.createServer((req, res) => {
+    res.writeHead(200, {'Content-Type': 'text/plain'});
+    res.end('Hello World');
+}).listen(3000);
+```
+
+### Q24. URL Parsing
+```javascript
+const url = require('url');
+const myURL = new URL('https://example.com/path?query=value');
+console.log(myURL.hostname, myURL.pathname);
+```
+
+### Q25. Query Strings
+```javascript
+const querystring = require('querystring');
+querystring.parse('foo=bar&abc=xyz');
+```
+
+### Q26. Crypto Module
+```javascript
+const crypto = require('crypto');
+const hash = crypto.createHash('sha256').update('password').digest('hex');
+```
+
+### Q27. Zlib Compression
+```javascript
+const zlib = require('zlib');
+const gzip = zlib.createGzip();
+input.pipe(gzip).pipe(output);
+```
+
+### Q28. Worker Threads
+```javascript
+const { Worker } = require('worker_threads');
+const worker = new Worker('./worker.js');
+```
+
+### Q29. Debugging
+```javascript
+node --inspect app.js
+console.log(), console.error(), console.trace()
+```
+
+### Q30. Memory Management
+```javascript
+process.memoryUsage();
+// { rss, heapTotal, heapUsed, external }
+```
+
+### Q31. Performance Hooks
+```javascript
+const { performance } = require('perf_hooks');
+const start = performance.now();
+// code
+const end = performance.now();
+console.log(end - start);
+```
+
+### Q32. Assert Module
+```javascript
+const assert = require('assert');
+assert.strictEqual(1, 1);
+assert.deepStrictEqual(obj1, obj2);
+```
+
+### Q33. Util Module
+```javascript
+const util = require('util');
+const readFile = util.promisify(fs.readFile);
+```
+
+### Q34. DNS Module
+```javascript
+const dns = require('dns');
+dns.lookup('example.com', (err, address) => console.log(address));
+```
+
+### Q35. Net Module (TCP)
+```javascript
+const net = require('net');
+const server = net.createServer(socket => {
+    socket.write('Echo server\r\n');
+});
+```
+
+### Q36. Readline
+```javascript
+const readline = require('readline');
+const rl = readline.createInterface({input: process.stdin, output: process.stdout});
+```
+
+### Q37. Environment Variables
+```javascript
+require('dotenv').config();
+const dbHost = process.env.DB_HOST;
+```
+
+### Q38. Package.json Scripts
+```json
+"scripts": {
+  "start": "node app.js",
+  "dev": "nodemon app.js",
+  "test": "jest"
+}
+```
+
+### Q39. NPM Commands
+```bash
+npm install package
+npm install --save-dev package
+npm update
+npm audit fix
+```
+
+### Q40. Module Caching
+```javascript
+require('./module'); // Cached after first require
+delete require.cache[require.resolve('./module')]; // Clear cache
+```
+
+### Q41. Custom Modules
+```javascript
+// math.js
+module.exports.add = (a, b) => a + b;
+// app.js
+const math = require('./math');
+```
+
+### Q42. HTTP Status Codes
+```javascript
+res.status(200).json({success: true}); // OK
+res.status(201).json({created: true}); // Created
+res.status(400).json({error: 'Bad Request'});
+res.status(404).json({error: 'Not Found'});
+res.status(500).json({error: 'Server Error'});
+```
+
+### Q43. Middleware Pattern
+```javascript
+function logger(req, res, next) {
+    console.log(`${req.method} ${req.url}`);
+    next();
+}
+app.use(logger);
+```
+
+### Q44. Error Middleware
+```javascript
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Something broke!');
+});
+```
+
+### Q45. CORS
+```javascript
+const cors = require('cors');
+app.use(cors({ origin: 'https://example.com' }));
+```
+
+### Q46. Body Parser
+```javascript
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+```
+
+### Q47. Static Files
+```javascript
+app.use(express.static('public'));
+app.use('/static', express.static('files'));
+```
+
+### Q48. Request Object
+```javascript
+req.params.id
+req.query.search
+req.body.username
+req.headers['content-type']
+req.cookies.session
+```
+
+### Q49. Response Methods
+```javascript
+res.send('text');
+res.json({data: 'value'});
+res.sendFile('/path/to/file');
+res.download('/path/to/file');
+res.redirect('/other-page');
+```
+
+### Q50. JWT Authentication
+```javascript
+const jwt = require('jsonwebtoken');
+const token = jwt.sign({userId: 123}, SECRET_KEY, {expiresIn: '1h'});
+const decoded = jwt.verify(token, SECRET_KEY);
+```
+
+### Q51. Password Hashing
+```javascript
+const bcrypt = require('bcrypt');
+const hashed = await bcrypt.hash(password, 10);
+const isValid = await bcrypt.compare(password, hashed);
+```
+
+### Q52. Session Management
+```javascript
+const session = require('express-session');
+app.use(session({
+    secret: 'secret',
+    resave: false,
+    saveUninitialized: true
+}));
+```
+
+### Q53. Cookie Parser
+```javascript
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+res.cookie('name', 'value', {maxAge: 900000, httpOnly: true});
+```
+
+### Q54. File Upload (Multer)
+```javascript
+const multer = require('multer');
+const upload = multer({dest: 'uploads/'});
+app.post('/upload', upload.single('file'), (req, res) => {
+    res.json({file: req.file});
+});
+```
+
+### Q55. Websockets
+```javascript
+const io = require('socket.io')(server);
+io.on('connection', socket => {
+    socket.emit('message', 'Hello');
+    socket.on('chat', data => io.emit('chat', data));
+});
+```
+
+### Q56. Request Validation
+```javascript
+const {body, validationResult} = require('express-validator');
+app.post('/user', [
+    body('email').isEmail(),
+    body('password').isLength({min: 8})
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({errors: errors.array()});
+});
+```
+
+### Q57. Rate Limiting
+```javascript
+const rateLimit = require('express-rate-limit');
+const limiter = rateLimit({windowMs: 15*60*1000, max: 100});
+app.use('/api/', limiter);
+```
+
+### Q58. Helmet (Security)
+```javascript
+const helmet = require('helmet');
+app.use(helmet());
+```
+
+### Q59. Compression
+```javascript
+const compression = require('compression');
+app.use(compression());
+```
+
+### Q60. Morgan (Logging)
+```javascript
+const morgan = require('morgan');
+app.use(morgan('combined'));
+```
+
+### Q61. Dotenv
+```javascript
+require('dotenv').config();
+const port = process.env.PORT || 3000;
+```
+
+### Q62. Nodemon (Development)
+```json
+"scripts": {
+  "dev": "nodemon app.js"
+}
+```
+
+### Q63. Jest Testing
+```javascript
+test('adds 1 + 2 to equal 3', () => {
+    expect(sum(1, 2)).toBe(3);
+});
+```
+
+### Q64. Supertest (API Testing)
+```javascript
+const request = require('supertest');
+test('GET /users', async () => {
+    const response = await request(app).get('/users');
+    expect(response.statusCode).toBe(200);
+});
+```
+
+### Q65. MongoDB Connection
+```javascript
+const mongoose = require('mongoose');
+await mongoose.connect('mongodb://localhost:27017/mydb');
+```
+
+### Q66. Mongoose Schema
+```javascript
+const userSchema = new mongoose.Schema({
+    name: String,
+    email: {type: String, required: true, unique: true}
+});
+```
+
+### Q67. Mongoose CRUD
+```javascript
+await User.create({name: 'John'});
+const user = await User.findById(id);
+await User.updateOne({_id: id}, {name: 'Jane'});
+await User.deleteOne({_id: id});
+```
+
+### Q68. Mongoose Populate
+```javascript
+const user = await User.findById(id).populate('posts');
+```
+
+### Q69. Async Iteration
+```javascript
+for await (const chunk of stream) {
+    console.log(chunk);
+}
+```
+
+### Q70. AbortController
+```javascript
+const controller = new AbortController();
+fetch(url, {signal: controller.signal});
+setTimeout(() => controller.abort(), 5000);
+```
+
+### Q71. TextEncoder/TextDecoder
+```javascript
+const encoder = new TextEncoder();
+const uint8array = encoder.encode('Hello');
+```
+
+### Q72. URL API
+```javascript
+const myURL = new URL('https://example.com/path?query=value');
+myURL.searchParams.get('query');
+```
+
+### Q73. FormData
+```javascript
+const formData = new FormData();
+formData.append('file', fileBlob);
+```
+
+### Q74. Headers API
+```javascript
+const headers = new Headers();
+headers.append('Content-Type', 'application/json');
+```
+
+### Q75. Request/Response Streams
+```javascript
+request.on('data', chunk => {});
+request.on('end', () => {});
+```
+
+### Q76. Graceful Shutdown
+```javascript
+process.on('SIGTERM', () => {
+    server.close(() => {
+        db.disconnect();
+        process.exit(0);
+    });
+});
+```
+
+### Q77. Uncaught Exceptions
+```javascript
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    process.exit(1);
+});
+```
+
+### Q78. Unhandled Rejections
+```javascript
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection:', reason);
+});
+```
+
+### Q79. Package-lock.json
+```javascript
+// Ensures exact dependency versions
+// Committed to version control
+npm ci // Use in CI/CD
+```
+
+### Q80. ESLint Configuration
+```json
+{
+  "extends": "eslint:recommended",
+  "env": {"node": true, "es6": true},
+  "rules": {"no-console": "warn"}
+}
+```
+
+**Total Node.js Questions: 80+ covering all major topics!**

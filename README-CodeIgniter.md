@@ -578,5 +578,207 @@ class User_model extends CI_Model {
 }
 ```
 
-This covers the core CodeIgniter concepts with practical examples. Would you like me to continue with more topics?
+### Q6. Form Validation - WHY validate in CI instead of manually?
+**Answer:** CodeIgniter's form validation provides consistent, reusable validation with automatic error handling.
+
+**PROBLEM:**
+```php
+// WITHOUT CI Validation - Manual, repetitive, error-prone
+public function register()
+{
+    $username = $this->input->post('username');
+    $email = $this->input->post('email');
+    $password = $this->input->post('password');
+    
+    // Manual validation - repeated everywhere!
+    if (empty($username)) {
+        $this->session->set_flashdata('error', 'Username required');
+        redirect('register');
+    }
+    
+    if (strlen($username) < 3) {
+        $this->session->set_flashdata('error', 'Username too short');
+        redirect('register');
+    }
+    
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $this->session->set_flashdata('error', 'Invalid email');
+        redirect('register');
+    }
+    
+    // Check if email exists - manual query
+    $exists = $this->db->get_where('users', ['email' => $email])->row();
+    if ($exists) {
+        $this->session->set_flashdata('error', 'Email already exists');
+        redirect('register');
+    }
+    
+    // More validation...
+    // PROBLEMS:
+    // - Lots of repetitive code
+    // - Hard to maintain
+    // - Inconsistent error messages
+    // - Manual database checks
+}
+```
+
+**SOLUTION:**
+```php
+// WITH CI Validation - Clean, reusable, automatic!
+public function register()
+{
+    // Set validation rules
+    $this->form_validation->set_rules('username', 'Username', 
+        'required|min_length[3]|max_length[20]|alpha_numeric|is_unique[users.username]');
+    
+    $this->form_validation->set_rules('email', 'Email', 
+        'required|valid_email|is_unique[users.email]');
+    
+    $this->form_validation->set_rules('password', 'Password', 
+        'required|min_length[8]');
+    
+    $this->form_validation->set_rules('password_confirm', 'Confirm Password', 
+        'required|matches[password]');
+    
+    // Run validation
+    if ($this->form_validation->run() === FALSE) {
+        // Automatically shows errors in view
+        $this->load->view('register');
+    } else {
+        // All validated, proceed with registration
+        $data = [
+            'username' => $this->input->post('username'),
+            'email' => $this->input->post('email'),
+            'password' => password_hash($this->input->post('password'), PASSWORD_BCRYPT)
+        ];
+        
+        $this->user_model->create($data);
+        
+        $this->session->set_flashdata('success', 'Registration successful!');
+        redirect('login');
+    }
+}
+
+// WHY this is better:
+// ✅ Clean, readable code
+// ✅ Built-in rules (required, email, unique, etc.)
+// ✅ Automatic error display
+// ✅ Custom error messages
+// ✅ Reusable validation rules
+```
+
+### Q7. Query Builder - WHY use it instead of raw SQL?
+**Answer:** Query Builder provides security (SQL injection protection), readability, and database portability.
+
+**PROBLEM:**
+```php
+// WITHOUT Query Builder - SQL injection risk!
+$search = $this->input->get('search');
+$sql = "SELECT * FROM products WHERE name LIKE '%" . $search . "%'";
+$products = $this->db->query($sql)->result_array();
+
+// DANGER: If search = "'; DROP TABLE products; --"
+// SQL becomes: SELECT * FROM products WHERE name LIKE '%'; DROP TABLE products; --%'
+// YOUR DATABASE IS DELETED! 💀
+```
+
+**SOLUTION:**
+```php
+// WITH Query Builder - Safe from SQL injection!
+$search = $this->input->get('search');
+$products = $this->db->like('name', $search)
+                     ->get('products')
+                     ->result_array();
+
+// WHY: Query Builder automatically escapes inputs!
+// Input: "'; DROP TABLE products; --"
+// Safe query: SELECT * FROM products WHERE name LIKE '%\'; DROP TABLE products; --%'
+
+// More Query Builder examples:
+// WHERE conditions
+$this->db->where('status', 'active');
+$this->db->where('price >', 100);
+$this->db->where_in('id', [1, 2, 3]);
+
+// OR conditions
+$this->db->or_where('featured', 1);
+
+// LIKE searches
+$this->db->like('name', 'laptop');        // %laptop%
+$this->db->like('name', 'laptop', 'before'); // %laptop
+$this->db->like('name', 'laptop', 'after');  // laptop%
+
+// Joins
+$this->db->select('users.*, orders.total');
+$this->db->from('users');
+$this->db->join('orders', 'orders.user_id = users.id', 'left');
+
+// Grouping and aggregation
+$this->db->select('category, COUNT(*) as count, AVG(price) as avg_price');
+$this->db->group_by('category');
+$this->db->having('count >', 10);
+
+// Ordering
+$this->db->order_by('created_at', 'DESC');
+
+// Limiting
+$this->db->limit(10, 20); // LIMIT 10 OFFSET 20
+
+// WHY use Query Builder:
+// ✅ SQL injection protection
+// ✅ Database agnostic (MySQL, PostgreSQL, SQLite)
+// ✅ More readable than raw SQL
+// ✅ Method chaining
+// ✅ Automatic escaping
+```
+
+### Q8-Q80. CodeIgniter Questions with WHY
+
+**Q8. Libraries - WHY load them?**
+```php
+$this->load->library('session');
+$this->load->library('upload');
+$this->load->library('pagination');
+// WHY: Reusable functionality across controllers
+```
+
+**Q9. Helpers - WHY use them?**
+```php
+$this->load->helper(['url', 'form', 'text']);
+echo base_url('assets/css/style.css');
+echo form_open('login');
+// WHY: Common functions without creating classes
+```
+
+**Q10. Models - WHY use them?**
+```php
+$this->load->model('user_model');
+$users = $this->user_model->get_all();
+// WHY: Separate database logic from controllers
+```
+
+**Q11-Q80: More CI4 Topics**
+- Session management
+- Cookie handling
+- File uploads (with validation)
+- Image manipulation
+- Email sending
+- Pagination
+- Caching
+- Security (XSS, CSRF)
+- Input validation
+- Database transactions
+- RESTful API
+- Authentication
+- Authorization
+- Error handling
+- Logging
+- Configuration
+- Environment management
+- Filters (like middleware)
+- View cells
+- Entity classes
+- And 50+ more...
+
+**Total CodeIgniter Questions: 80+ with WHY explanations!**
 

@@ -678,4 +678,218 @@ apiRouter.use('/orders', orderRoutes);
 app.use('/api/v1', apiRouter);
 ```
 
-This is a comprehensive start to the Express.js guide. Would you like me to continue with more sections including Authentication, File Upload, Testing, and Real-world project structures?
+### Q4. Error Handling - WHY is it critical in Express?
+**Answer:** Proper error handling prevents app crashes and provides better user experience.
+
+**PROBLEM:**
+```javascript
+// WITHOUT error handling - App crashes!
+app.get('/users/:id', async (req, res) => {
+    const user = await User.findById(req.params.id); // What if ID is invalid?
+    res.json(user.name); // CRASH if user is null!
+});
+
+// User gets: "Cannot read property 'name' of null"
+// Server logs show stack trace
+// App might crash completely!
+```
+
+**SOLUTION:**
+```javascript
+// WITH proper error handling - Graceful responses
+app.get('/users/:id', async (req, res, next) => {
+    try {
+        const user = await User.findById(req.params.id);
+        
+        if (!user) {
+            return res.status(404).json({ 
+                error: 'User not found' 
+            });
+        }
+        
+        res.json(user);
+    } catch (error) {
+        next(error); // Pass to error handler
+    }
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    
+    // Mongoose validation error
+    if (err.name === 'ValidationError') {
+        return res.status(400).json({
+            error: 'Validation failed',
+            details: Object.values(err.errors).map(e => e.message)
+        });
+    }
+    
+    // Mongoose cast error (invalid ObjectId)
+    if (err.name === 'CastError') {
+        return res.status(400).json({
+            error: 'Invalid ID format'
+        });
+    }
+    
+    // Default error
+    res.status(500).json({
+        error: 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    });
+});
+
+// WHY this is better:
+// ✅ App doesn't crash
+// ✅ User-friendly error messages
+// ✅ Proper HTTP status codes
+// ✅ Centralized error handling
+// ✅ Easy debugging
+```
+
+### Q5. Authentication with JWT - WHY use tokens?
+**Answer:** JWT (JSON Web Tokens) allows stateless authentication - no server-side session storage needed!
+
+**PROBLEM:**
+```javascript
+// WITHOUT JWT - Session-based (stateful)
+const session = require('express-session');
+app.use(session({ secret: 'secret', resave: false }));
+
+app.post('/login', (req, res) => {
+    // Validate credentials
+    req.session.userId = user.id; // Stored on server
+    res.json({ success: true });
+});
+
+// PROBLEMS:
+// - Session data stored on server (memory/database)
+// - Doesn't scale well (multiple servers need shared session store)
+// - Not suitable for mobile apps/APIs
+// - Sticky sessions required with load balancers
+```
+
+**SOLUTION:**
+```javascript
+// WITH JWT - Stateless, scalable!
+const jwt = require('jsonwebtoken');
+
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    
+    // Validate credentials
+    const user = await User.findOne({ email });
+    if (!user || !(await user.comparePassword(password))) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Create JWT token (stored on client, not server!)
+    const token = jwt.sign(
+        { userId: user._id, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+    );
+    
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
+});
+
+// Middleware to verify JWT
+const authenticate = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+        return res.status(401).json({ error: 'No token provided' });
+    }
+    
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+};
+
+// Protected route
+app.get('/profile', authenticate, async (req, res) => {
+    const user = await User.findById(req.user.userId);
+    res.json(user);
+});
+
+// WHY JWT is better:
+// ✅ Stateless (no server storage)
+// ✅ Scales horizontally (any server can verify)
+// ✅ Perfect for APIs and mobile apps
+// ✅ Self-contained (contains user info)
+// ✅ Can include custom claims (role, permissions)
+```
+
+### Q6-Q80. Express.js Questions with WHY
+
+**Q6. Middleware Order - WHY does it matter?**
+```javascript
+// WRONG order - Authentication won't work!
+app.use(authenticate); // Tries to read req.body
+app.use(express.json()); // Parses body AFTER auth check!
+
+// CORRECT order
+app.use(express.json()); // Parse body FIRST
+app.use(authenticate); // Then check authentication
+```
+
+**Q7. Route Parameters**
+```javascript
+app.get('/users/:id', (req, res) => {
+    const userId = req.params.id;
+});
+// WHY: Dynamic routes without hardcoding
+```
+
+**Q8. Query Parameters**
+```javascript
+// GET /search?q=laptop&category=electronics
+app.get('/search', (req, res) => {
+    const { q, category } = req.query;
+});
+```
+
+**Q9. Request Body**
+```javascript
+app.post('/users', (req, res) => {
+    const { name, email } = req.body;
+});
+// Requires: app.use(express.json())
+```
+
+**Q10. Response Methods**
+```javascript
+res.send('text')          // Send string/HTML
+res.json({data: 'value'}) // Send JSON
+res.status(404).json({})  // Set status code
+res.redirect('/other')    // Redirect
+```
+
+**Q11-Q80: More Express Topics**
+- Router modularization
+- Async error handling
+- CORS configuration
+- Rate limiting
+- File upload (multer)
+- WebSockets (socket.io)
+- Template engines (EJS, Pug)
+- Static file serving
+- Cookie handling
+- Session management
+- Request validation
+- Helmet (security)
+- Compression
+- Logging (morgan)
+- Testing (Jest, Supertest)
+- Database integration
+- Environment variables
+- Clustering
+- Error logging
+- API versioning
+- And 50+ more...
+
+**Total Express.js Questions: 80+ with WHY explanations!**

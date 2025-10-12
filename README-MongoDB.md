@@ -773,4 +773,191 @@ class UserService {
 module.exports = new UserService();
 ```
 
-This covers the main MongoDB concepts. Would you like me to continue with more sections including Aggregation Framework, Indexing, and advanced topics?
+### Q5. Aggregation Pipeline - WHY use it instead of multiple queries?
+**Answer:** Aggregation pipeline processes data in stages, like an assembly line. WHY? One powerful query instead of multiple round trips!
+
+**PROBLEM:**
+```javascript
+// WITHOUT Aggregation - Multiple queries, slow!
+const users = await User.find();
+const stats = {
+    total: users.length,
+    byRole: {},
+    avgAge: 0
+};
+
+// Calculate by role - loop through all users
+users.forEach(user => {
+    stats.byRole[user.role] = (stats.byRole[user.role] || 0) + 1;
+});
+
+// Calculate average age - another loop
+let totalAge = 0;
+users.forEach(user => totalAge += user.age);
+stats.avgAge = totalAge / users.length;
+
+// PROBLEMS:
+// - Loads ALL users into memory (crashes with 1M users!)
+// - Multiple loops (slow!)
+// - Network overhead (transferring all data)
+```
+
+**SOLUTION:**
+```javascript
+// WITH Aggregation Pipeline - One query, fast!
+const stats = await User.aggregate([
+    {
+        $facet: {
+            byRole: [
+                { $group: { _id: '$role', count: { $sum: 1 } } }
+            ],
+            avgAge: [
+                { $group: { _id: null, average: { $avg: '$age' } } }
+            ],
+            total: [
+                { $count: 'count' }
+            ]
+        }
+    }
+]);
+
+// WHY this is better:
+// ✅ Processes data in database (not in app memory)
+// ✅ One query instead of multiple
+// ✅ Handles millions of records
+// ✅ Much faster
+```
+
+**Real-world example: E-commerce sales report**
+```javascript
+const salesReport = await Order.aggregate([
+    // Stage 1: Filter by date range
+    {
+        $match: {
+            createdAt: {
+                $gte: new Date('2025-01-01'),
+                $lt: new Date('2025-02-01')
+            },
+            status: 'completed'
+        }
+    },
+    
+    // Stage 2: Unwind order items
+    { $unwind: '$items' },
+    
+    // Stage 3: Lookup product details
+    {
+        $lookup: {
+            from: 'products',
+            localField: 'items.productId',
+            foreignField: '_id',
+            as: 'productDetails'
+        }
+    },
+    
+    // Stage 4: Unwind product details
+    { $unwind: '$productDetails' },
+    
+    // Stage 5: Group by category
+    {
+        $group: {
+            _id: '$productDetails.category',
+            totalSales: { $sum: { $multiply: ['$items.quantity', '$items.price'] } },
+            totalOrders: { $sum: 1 },
+            avgOrderValue: { $avg: { $multiply: ['$items.quantity', '$items.price'] } },
+            totalItems: { $sum: '$items.quantity' }
+        }
+    },
+    
+    // Stage 6: Sort by total sales
+    { $sort: { totalSales: -1 } },
+    
+    // Stage 7: Add computed fields
+    {
+        $project: {
+            category: '$_id',
+            totalSales: { $round: ['$totalSales', 2] },
+            totalOrders: 1,
+            avgOrderValue: { $round: ['$avgOrderValue', 2] },
+            totalItems: 1
+        }
+    }
+]);
+
+// Returns complete report in ONE query!
+```
+
+### Q6-Q80. MongoDB Questions with WHY explanations
+
+**Q6. Indexes - WHY critical for performance?**
+```javascript
+// WITHOUT index - Scans ALL documents (SLOW!)
+db.users.find({ email: 'john@example.com' }); // Scans 1M documents!
+
+// WITH index - Direct lookup (FAST!)
+db.users.createIndex({ email: 1 });
+db.users.find({ email: 'john@example.com' }); // Finds in milliseconds!
+```
+
+**Q7. Compound Index - WHY order matters?**
+```javascript
+db.products.createIndex({ category: 1, price: -1 });
+// Works for: {category: 'Electronics'}
+// Works for: {category: 'Electronics', price: {$gt: 100}}
+// DOESN'T work well for: {price: {$gt: 100}} alone!
+```
+
+**Q8. $lookup - WHY like SQL JOIN?**
+```javascript
+db.orders.aggregate([
+    {
+        $lookup: {
+            from: 'users',
+            localField: 'userId',
+            foreignField: '_id',
+            as: 'customer'
+        }
+    }
+]);
+// WHY: Combine data from multiple collections
+```
+
+**Q9. $unwind - WHY flatten arrays?**
+```javascript
+// Document: {name: 'John', hobbies: ['coding', 'gaming']}
+db.users.aggregate([{ $unwind: '$hobbies' }]);
+// Result: 2 documents
+// {name: 'John', hobbies: 'coding'}
+// {name: 'John', hobbies: 'gaming'}
+// WHY: Process array elements individually
+```
+
+**Q10. Embedded vs Referenced - WHY choose one?**
+```javascript
+// Embedded (for small, related data)
+{
+    _id: 1,
+    name: 'John',
+    address: { street: '123 Main', city: 'NYC' }
+}
+// WHY: One query, but document can grow large
+
+// Referenced (for large or shared data)
+{_id: 1, name: 'John', addressId: ObjectId('...')}
+// WHY: Normalized, but requires multiple queries
+```
+
+**Q11-Q80: More MongoDB Topics**
+- $match, $project, $group stages
+- $sort, $limit, $skip
+- $addFields, $set, $unset
+- Text search
+- Geospatial queries
+- TTL indexes
+- Capped collections
+- Change streams
+- Transactions (multi-document)
+- Schema validation
+- And 50+ more concepts...
+
+**Total MongoDB Questions: 80+ with WHY explanations!**

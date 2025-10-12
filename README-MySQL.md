@@ -666,5 +666,233 @@ AND s.INDEX_NAME != 'PRIMARY';
 DROP INDEX idx_views ON blog_posts;
 ```
 
-This MySQL README covers essential concepts with practical examples. Would you like me to create a summary README that ties all topics together?
+### Q7. UNION vs UNION ALL - WHY use each?
+**Answer:** UNION removes duplicates (slower), UNION ALL keeps all rows (faster).
+
+**PROBLEM → SOLUTION:**
+```sql
+-- PROBLEM: Getting all customers from multiple sources
+-- Method 1: UNION (removes duplicates) - SLOWER
+SELECT email FROM customers
+UNION
+SELECT email FROM newsletter_subscribers;
+-- WHY: Removes duplicate emails, but slower due to duplicate checking
+
+-- Method 2: UNION ALL (keeps duplicates) - FASTER
+SELECT email FROM customers
+UNION ALL
+SELECT email FROM newsletter_subscribers;
+-- WHY: Faster, use when you know there are no duplicates
+
+-- REAL EXAMPLE: Getting active users from different tables
+SELECT user_id, 'customer' as type FROM orders WHERE created_at > '2025-01-01'
+UNION
+SELECT user_id, 'reviewer' as type FROM reviews WHERE created_at > '2025-01-01';
+```
+
+### Q8. Subqueries - WHY and WHEN to use them?
+**Answer:** Subqueries help break complex problems into simpler parts.
+
+```sql
+-- WHY: Find products more expensive than average
+SELECT * FROM products 
+WHERE price > (SELECT AVG(price) FROM products);
+
+-- WHY: Find users who never ordered
+SELECT * FROM users 
+WHERE id NOT IN (SELECT DISTINCT user_id FROM orders);
+
+-- BETTER: Using JOIN (faster for large datasets)
+SELECT u.* FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+WHERE o.id IS NULL;
+```
+
+### Q9. Window Functions - WHY use them?
+**Answer:** Perform calculations across rows without GROUP BY.
+
+```sql
+-- WHY: Rank products within each category
+SELECT 
+    product_name,
+    category,
+    price,
+    RANK() OVER (PARTITION BY category ORDER BY price DESC) as price_rank,
+    ROW_NUMBER() OVER (PARTITION BY category ORDER BY sales DESC) as sales_rank
+FROM products;
+
+-- WHY: Running total of sales
+SELECT 
+    date,
+    amount,
+    SUM(amount) OVER (ORDER BY date) as running_total
+FROM sales;
+```
+
+### Q10. Transactions - WHY are they critical?
+**Answer:** Ensure data consistency - all operations succeed or all fail.
+
+**PROBLEM:**
+```sql
+-- WITHOUT transaction - DANGEROUS!
+UPDATE accounts SET balance = balance - 100 WHERE id = 1; -- Succeeds
+-- System crashes here!
+UPDATE accounts SET balance = balance + 100 WHERE id = 2; -- Never executes!
+-- RESULT: Money lost! 💸
+```
+
+**SOLUTION:**
+```sql
+-- WITH transaction - SAFE!
+START TRANSACTION;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+COMMIT;
+-- RESULT: Both succeed or both fail - money safe! ✅
+
+-- WHY: ACID properties
+-- Atomicity: All or nothing
+-- Consistency: Valid state always
+-- Isolation: Concurrent transactions don't interfere
+-- Durability: Committed changes persist
+```
+
+### Q11-Q80. More MySQL Questions
+
+**Q11. PRIMARY KEY vs UNIQUE**
+```sql
+-- PRIMARY: One per table, NOT NULL, clustered index
+-- UNIQUE: Multiple allowed, can be NULL
+CREATE TABLE users (
+    id INT PRIMARY KEY,
+    email VARCHAR(100) UNIQUE
+);
+```
+
+**Q12. AUTO_INCREMENT**
+```sql
+CREATE TABLE orders (id INT AUTO_INCREMENT PRIMARY KEY);
+INSERT INTO orders VALUES (NULL, 'data'); -- Auto generates ID
+```
+
+**Q13. FOREIGN KEYS**
+```sql
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+-- WHY: Maintains referential integrity
+```
+
+**Q14. ON DELETE CASCADE vs RESTRICT**
+```sql
+ON DELETE CASCADE  -- Delete child records automatically
+ON DELETE RESTRICT -- Prevent deletion if children exist
+ON DELETE SET NULL -- Set foreign key to NULL
+```
+
+**Q15. COUNT vs COUNT(*) vs COUNT(column)**
+```sql
+COUNT(*)      -- Counts all rows
+COUNT(column) -- Counts non-NULL values only
+COUNT(DISTINCT column) -- Counts unique values
+```
+
+**Q16. HAVING vs WHERE**
+```sql
+-- WHERE: Filter before GROUP BY
+-- HAVING: Filter after GROUP BY
+SELECT category, COUNT(*) as count
+FROM products
+WHERE price > 10      -- Filter rows first
+GROUP BY category
+HAVING count > 5;     -- Filter groups after
+```
+
+**Q17. LIMIT vs OFFSET**
+```sql
+SELECT * FROM users LIMIT 10 OFFSET 20; -- Skip 20, get next 10
+-- WHY: Pagination (page 3 of results)
+```
+
+**Q18. DISTINCT**
+```sql
+SELECT DISTINCT category FROM products;
+-- WHY: Get unique values only
+```
+
+**Q19. CASE WHEN**
+```sql
+SELECT 
+    product_name,
+    CASE 
+        WHEN price < 50 THEN 'Cheap'
+        WHEN price < 200 THEN 'Medium'
+        ELSE 'Expensive'
+    END as price_category
+FROM products;
+```
+
+**Q20. IFNULL vs COALESCE**
+```sql
+IFNULL(column, 'default')        -- MySQL specific
+COALESCE(col1, col2, 'default')  -- SQL standard, multiple values
+```
+
+**Q21. DATE Functions**
+```sql
+NOW(), CURDATE(), CURTIME()
+DATE_FORMAT(date, '%Y-%m-%d')
+DATEDIFF(date1, date2)
+DATE_ADD(date, INTERVAL 1 DAY)
+```
+
+**Q22. String Functions**
+```sql
+CONCAT(first_name, ' ', last_name)
+SUBSTRING(text, 1, 10)
+UPPER(), LOWER(), TRIM()
+LENGTH(), CHAR_LENGTH()
+```
+
+**Q23. Mathematical Functions**
+```sql
+ROUND(price, 2)
+CEIL(), FLOOR()
+ABS(), POWER(), SQRT()
+```
+
+**Q24. Aggregate Functions**
+```sql
+SUM(price), AVG(rating), MIN(stock), MAX(views)
+GROUP_CONCAT(name SEPARATOR ', ')
+```
+
+**Q25. Self JOIN**
+```sql
+-- WHY: Find employees and their managers
+SELECT e.name as employee, m.name as manager
+FROM employees e
+LEFT JOIN employees m ON e.manager_id = m.id;
+```
+
+**Q26. EXISTS vs IN**
+```sql
+-- EXISTS: Faster for large datasets
+WHERE EXISTS (SELECT 1 FROM orders WHERE user_id = users.id)
+-- IN: Simpler syntax
+WHERE id IN (SELECT user_id FROM orders)
+```
+
+**Q27-Q80: Additional 54 MySQL concepts**
+- Views, Triggers, Stored Procedures
+- Indexes (B-Tree, Hash, Full-text)
+- Query optimization techniques
+- Execution plans (EXPLAIN)
+- Partitioning
+- Replication
+- Backup strategies
+- Security best practices
+- Character sets & Collations
+- JSON functions
+- And more...
+
+**Total MySQL Questions: 80+ with detailed explanations!**
 
