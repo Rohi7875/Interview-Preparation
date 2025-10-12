@@ -490,13 +490,16 @@ This guide is created for educational purposes. Feel free to use it for intervie
 ### String Functions & Methods
 - [String Manipulation Guide](README-String-Functions.md) - PHP & JavaScript string functions 🔥 NEW
 
+### ☁️ Cloud & DevOps
+- [AWS Cloud Services](README-AWS-Cloud.md) - Complete AWS guide for developers 🌟 NEW
+
 ### 🎯 Interview Preparation Resources
 - [Interview Tips & Strategies](README-Interview-Tips.md) - Behavioral, System Design, Coding Challenges ⭐ NEW
 - [8-Week Study Plan](README-Study-Plan.md) - Structured preparation schedule ⭐ NEW
 - [Quick Reference Cheat Sheet](README-Cheat-Sheet.md) - Last-minute review guide ⭐ NEW
 - [Framework Comparison Guide](README-Framework-Comparison.md) - Laravel vs CodeIgniter vs Express.js 🆕 NEW
 
-**Total: 235+ Questions + 2 Array Guides + 1 String Guide + 4 Interview Prep Resources + 2 Framework Guides!**
+**Total: 235+ Questions + 2 Array Guides + 1 String Guide + 1 AWS Cloud Guide + 4 Interview Prep Resources + 2 Framework Guides!**
 
 ---
 
