@@ -499,7 +499,12 @@ This guide is created for educational purposes. Feel free to use it for intervie
 - [Quick Reference Cheat Sheet](README-Cheat-Sheet.md) - Last-minute review guide ⭐ NEW
 - [Framework Comparison Guide](README-Framework-Comparison.md) - Laravel vs CodeIgniter vs Express.js 🆕 NEW
 
-**Total: 560+ Questions (80+ per framework) + Array/String Guides + AWS Cloud + Interview Prep Resources!**
+### 📧 Job Application Resources
+- [Cold Email Templates](RECRUITER-EMAIL-TEMPLATES.md) - Professional email templates for recruiters 💼 NEW
+- [Cover Letter Templates](COVER-LETTER-TEMPLATES.md) - Complete cover letter guide 💼 NEW
+- [LinkedIn Messages](LINKEDIN-MESSAGE-TEMPLATES.md) - Networking and outreach templates 💼 NEW
+
+**Total: 560+ Questions (80+ per framework) + Guides + Templates - EVERYTHING for Interview Success!**
 
 📊 **Updated Question Count:**
 - Laravel: 80+ questions ✅ EXPANDED with PROBLEM → SOLUTION → WHY
