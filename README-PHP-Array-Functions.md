@@ -618,4 +618,728 @@ echo "\n=== Multi-level Sort (Category > Price > Name) ===\n";
 print_r($sorter->sortProductsMultiLevel($products));
 ```
 
-This is the first part of the PHP Array Functions guide. Would you like me to continue with more sections including Array Merging, Transformation, and the Node.js array methods guide?
+---
+
+## Array Merging & Splitting
+
+### Q6. array_merge vs array_merge_recursive vs + operator
+**Answer:** Different ways to combine arrays with different behaviors for duplicate keys.
+
+**Syntax:**
+```php
+array_merge(array1, array2, ...) : array
+array_merge_recursive(array1, array2, ...) : array
+array1 + array2 : array
+```
+
+**Real-time Example:**
+```php
+// E-commerce Product Management System
+class ProductManager {
+    
+    // array_merge - Overwrites duplicate keys
+    public function mergeProductData($baseData, $additionalData) {
+        return array_merge($baseData, $additionalData);
+    }
+    
+    // array_merge_recursive - Preserves duplicate keys as arrays
+    public function mergeProductSpecs($specs1, $specs2) {
+        return array_merge_recursive($specs1, $specs2);
+    }
+    
+    // + operator - Keeps first array values for duplicate keys
+    public function mergeWithPriority($defaults, $userData) {
+        return $userData + $defaults;
+    }
+    
+    // Real-world example: Product configuration
+    public function buildProductConfig($productId, $userPreferences = []) {
+        // Default configuration
+        $defaultConfig = [
+            'display_mode' => 'grid',
+            'items_per_page' => 20,
+            'sort_by' => 'name',
+            'filters' => [
+                'price_range' => [0, 1000],
+                'brands' => [],
+                'categories' => []
+            ],
+            'features' => [
+                'wishlist' => true,
+                'compare' => true,
+                'reviews' => true
+            ]
+        ];
+        
+        // User preferences
+        $userConfig = [
+            'display_mode' => 'list',
+            'items_per_page' => 50,
+            'filters' => [
+                'price_range' => [100, 500],
+                'brands' => ['Apple', 'Samsung']
+            ],
+            'features' => [
+                'wishlist' => false
+            ]
+        ];
+        
+        // Merge with array_merge_recursive to preserve nested arrays
+        $mergedConfig = array_merge_recursive($defaultConfig, $userConfig);
+        
+        // Clean up duplicate values in arrays
+        $mergedConfig['filters']['brands'] = array_unique($mergedConfig['filters']['brands']);
+        
+        return $mergedConfig;
+    }
+    
+    // Advanced merging with custom logic
+    public function smartMerge($arrays) {
+        $result = [];
+        
+        foreach ($arrays as $array) {
+            foreach ($array as $key => $value) {
+                if (isset($result[$key])) {
+                    if (is_array($result[$key]) && is_array($value)) {
+                        $result[$key] = $this->smartMerge([$result[$key], $value]);
+                    } elseif (is_numeric($result[$key]) && is_numeric($value)) {
+                        $result[$key] = $result[$key] + $value;
+                    } else {
+                        $result[$key] = $value; // Overwrite
+                    }
+                } else {
+                    $result[$key] = $value;
+                }
+            }
+        }
+        
+        return $result;
+    }
+}
+
+// Usage examples
+$manager = new ProductManager();
+
+// Basic merging
+$baseData = ['name' => 'Laptop', 'price' => 999.99];
+$additionalData = ['price' => 899.99, 'discount' => 100];
+$merged = $manager->mergeProductData($baseData, $additionalData);
+// Result: ['name' => 'Laptop', 'price' => 899.99, 'discount' => 100]
+
+// Recursive merging
+$specs1 = ['ram' => '8GB', 'colors' => ['black', 'white']];
+$specs2 = ['storage' => '256GB', 'colors' => ['red', 'blue']];
+$recursiveMerged = $manager->mergeProductSpecs($specs1, $specs2);
+// Result: ['ram' => '8GB', 'colors' => ['black', 'white', 'red', 'blue'], 'storage' => '256GB']
+
+// Priority merging
+$defaults = ['theme' => 'light', 'language' => 'en'];
+$userData = ['language' => 'es'];
+$priorityMerged = $manager->mergeWithPriority($defaults, $userData);
+// Result: ['language' => 'es', 'theme' => 'light']
+```
+
+### Q7. array_slice vs array_splice - Array Extraction
+**Answer:** Different methods to extract portions of arrays with different behaviors.
+
+**Syntax:**
+```php
+array_slice(array, offset, length, preserve_keys) : array
+array_splice(array, offset, length, replacement) : array
+```
+
+**Real-time Example:**
+```php
+// Pagination and Data Processing System
+class DataProcessor {
+    
+    // array_slice - Extract without modifying original
+    public function getPageData($data, $page, $perPage) {
+        $offset = ($page - 1) * $perPage;
+        return array_slice($data, $offset, $perPage, true);
+    }
+    
+    // array_splice - Extract and modify original array
+    public function removeAndGetItems(&$data, $start, $count) {
+        return array_splice($data, $start, $count);
+    }
+    
+    // Real-world example: Pagination system
+    public function paginateResults($results, $currentPage = 1, $perPage = 10) {
+        $totalItems = count($results);
+        $totalPages = ceil($totalItems / $perPage);
+        $offset = ($currentPage - 1) * $perPage;
+        
+        $pageData = array_slice($results, $offset, $perPage, true);
+        
+        return [
+            'data' => $pageData,
+            'pagination' => [
+                'current_page' => $currentPage,
+                'per_page' => $perPage,
+                'total_items' => $totalItems,
+                'total_pages' => $totalPages,
+                'has_next' => $currentPage < $totalPages,
+                'has_prev' => $currentPage > 1,
+                'next_page' => $currentPage < $totalPages ? $currentPage + 1 : null,
+                'prev_page' => $currentPage > 1 ? $currentPage - 1 : null
+            ]
+        ];
+    }
+    
+    // Chunk processing for large datasets
+    public function processInChunks($data, $chunkSize, $callback) {
+        $results = [];
+        $totalChunks = ceil(count($data) / $chunkSize);
+        
+        for ($i = 0; $i < $totalChunks; $i++) {
+            $chunk = array_slice($data, $i * $chunkSize, $chunkSize);
+            $processedChunk = $callback($chunk, $i);
+            $results = array_merge($results, $processedChunk);
+        }
+        
+        return $results;
+    }
+    
+    // Remove items and get them
+    public function extractAndRemove(&$data, $condition) {
+        $extracted = [];
+        $remaining = [];
+        
+        foreach ($data as $key => $item) {
+            if ($condition($item)) {
+                $extracted[$key] = $item;
+            } else {
+                $remaining[$key] = $item;
+            }
+        }
+        
+        $data = $remaining;
+        return $extracted;
+    }
+}
+
+// Usage
+$processor = new DataProcessor();
+
+// Pagination
+$products = range(1, 100); // Simulate 100 products
+$page1 = $processor->getPageData($products, 1, 10);
+$page2 = $processor->getPageData($products, 2, 10);
+
+// Full pagination with metadata
+$pagination = $processor->paginateResults($products, 2, 15);
+print_r($pagination);
+
+// Chunk processing
+$largeDataset = range(1, 1000);
+$processed = $processor->processInChunks($largeDataset, 100, function($chunk, $index) {
+    return array_map(function($item) {
+        return $item * 2; // Process each item
+    }, $chunk);
+});
+```
+
+### Q8. array_chunk - Split Array into Chunks
+**Answer:** Divides an array into smaller arrays of specified size.
+
+**Syntax:**
+```php
+array_chunk(array, size, preserve_keys) : array
+```
+
+**Real-time Example:**
+```php
+// Batch Processing System
+class BatchProcessor {
+    
+    public function processBatch($items, $batchSize, $processor) {
+        $chunks = array_chunk($items, $batchSize, true);
+        $results = [];
+        
+        foreach ($chunks as $index => $chunk) {
+            echo "Processing batch " . ($index + 1) . " of " . count($chunks) . "\n";
+            $batchResult = $processor($chunk);
+            $results = array_merge($results, $batchResult);
+        }
+        
+        return $results;
+    }
+    
+    // Real-world: Email sending in batches
+    public function sendBulkEmails($recipients, $batchSize = 50) {
+        $chunks = array_chunk($recipients, $batchSize);
+        $sentCount = 0;
+        
+        foreach ($chunks as $chunk) {
+            $this->sendEmailBatch($chunk);
+            $sentCount += count($chunk);
+            
+            // Add delay between batches to avoid rate limiting
+            sleep(1);
+        }
+        
+        return $sentCount;
+    }
+    
+    private function sendEmailBatch($recipients) {
+        // Simulate email sending
+        foreach ($recipients as $recipient) {
+            echo "Sending email to: {$recipient['email']}\n";
+        }
+    }
+    
+    // Database batch operations
+    public function batchInsert($table, $data, $batchSize = 1000) {
+        $chunks = array_chunk($data, $batchSize);
+        $insertedCount = 0;
+        
+        foreach ($chunks as $chunk) {
+            $this->insertBatch($table, $chunk);
+            $insertedCount += count($chunk);
+        }
+        
+        return $insertedCount;
+    }
+    
+    private function insertBatch($table, $data) {
+        // Simulate database insert
+        echo "Inserting " . count($data) . " records into $table\n";
+    }
+}
+
+// Usage
+$processor = new BatchProcessor();
+
+// Process large dataset in batches
+$largeData = range(1, 10000);
+$results = $processor->processBatch($largeData, 100, function($chunk) {
+    return array_map(function($item) {
+        return $item * 2;
+    }, $chunk);
+});
+
+// Email sending
+$recipients = [
+    ['email' => 'user1@example.com', 'name' => 'User 1'],
+    ['email' => 'user2@example.com', 'name' => 'User 2'],
+    // ... more recipients
+];
+$sentCount = $processor->sendBulkEmails($recipients, 10);
+```
+
+---
+
+## Array Transformation
+
+### Q9. array_map vs array_walk vs array_reduce
+**Answer:** Different array transformation functions with different purposes and return values.
+
+**Syntax:**
+```php
+array_map(callback, array1, array2, ...) : array
+array_walk(array, callback, userdata) : bool
+array_reduce(array, callback, initial) : mixed
+```
+
+**Real-time Example:**
+```php
+// Data Processing and Analytics System
+class DataAnalytics {
+    
+    // array_map - Transform each element, returns new array
+    public function calculateTaxes($products) {
+        return array_map(function($product) {
+            return [
+                'id' => $product['id'],
+                'name' => $product['name'],
+                'price' => $product['price'],
+                'tax' => $product['price'] * 0.08,
+                'total' => $product['price'] * 1.08
+            ];
+        }, $products);
+    }
+    
+    // array_walk - Modify array by reference, returns boolean
+    public function applyDiscount(&$products, $discountPercent) {
+        array_walk($products, function(&$product) use ($discountPercent) {
+            $product['price'] = $product['price'] * (1 - $discountPercent / 100);
+            $product['discount_applied'] = $discountPercent;
+        });
+    }
+    
+    // array_reduce - Reduce array to single value
+    public function calculateTotal($products) {
+        return array_reduce($products, function($carry, $product) {
+            return $carry + $product['price'];
+        }, 0);
+    }
+    
+    // Real-world example: E-commerce analytics
+    public function analyzeSalesData($salesData) {
+        // Calculate total revenue
+        $totalRevenue = array_reduce($salesData, function($carry, $sale) {
+            return $carry + $sale['amount'];
+        }, 0);
+        
+        // Calculate average sale
+        $averageSale = $totalRevenue / count($salesData);
+        
+        // Find top products
+        $productTotals = [];
+        array_walk($salesData, function($sale) use (&$productTotals) {
+            $productId = $sale['product_id'];
+            if (!isset($productTotals[$productId])) {
+                $productTotals[$productId] = 0;
+            }
+            $productTotals[$productId] += $sale['amount'];
+        });
+        
+        arsort($productTotals);
+        $topProducts = array_slice($productTotals, 0, 5, true);
+        
+        // Calculate monthly totals
+        $monthlyData = [];
+        array_walk($salesData, function($sale) use (&$monthlyData) {
+            $month = date('Y-m', strtotime($sale['date']));
+            if (!isset($monthlyData[$month])) {
+                $monthlyData[$month] = 0;
+            }
+            $monthlyData[$month] += $sale['amount'];
+        });
+        
+        return [
+            'total_revenue' => $totalRevenue,
+            'average_sale' => $averageSale,
+            'top_products' => $topProducts,
+            'monthly_breakdown' => $monthlyData,
+            'total_sales' => count($salesData)
+        ];
+    }
+    
+    // Complex data transformation
+    public function transformUserData($users) {
+        // Step 1: Filter active users
+        $activeUsers = array_filter($users, function($user) {
+            return $user['status'] === 'active';
+        });
+        
+        // Step 2: Transform user data
+        $transformedUsers = array_map(function($user) {
+            return [
+                'id' => $user['id'],
+                'full_name' => $user['first_name'] . ' ' . $user['last_name'],
+                'email' => strtolower($user['email']),
+                'age' => date_diff(date_create($user['birth_date']), date_create('now'))->y,
+                'membership_years' => date_diff(date_create($user['created_at']), date_create('now'))->y,
+                'is_premium' => $user['subscription_type'] === 'premium'
+            ];
+        }, $activeUsers);
+        
+        // Step 3: Sort by membership years
+        usort($transformedUsers, function($a, $b) {
+            return $b['membership_years'] <=> $a['membership_years'];
+        });
+        
+        return $transformedUsers;
+    }
+    
+    // Advanced reduce example
+    public function calculateStatistics($numbers) {
+        return array_reduce($numbers, function($carry, $number) {
+            $carry['sum'] += $number;
+            $carry['count']++;
+            $carry['min'] = min($carry['min'], $number);
+            $carry['max'] = max($carry['max'], $number);
+            return $carry;
+        }, [
+            'sum' => 0,
+            'count' => 0,
+            'min' => PHP_FLOAT_MAX,
+            'max' => PHP_FLOAT_MIN
+        ]);
+    }
+}
+
+// Usage
+$analytics = new DataAnalytics();
+
+// Sample sales data
+$salesData = [
+    ['product_id' => 1, 'amount' => 100, 'date' => '2025-01-01'],
+    ['product_id' => 2, 'amount' => 150, 'date' => '2025-01-02'],
+    ['product_id' => 1, 'amount' => 200, 'date' => '2025-01-03'],
+];
+
+$analysis = $analytics->analyzeSalesData($salesData);
+print_r($analysis);
+
+// Transform user data
+$users = [
+    [
+        'id' => 1,
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'email' => 'JOHN@EXAMPLE.COM',
+        'birth_date' => '1990-01-01',
+        'created_at' => '2020-01-01',
+        'status' => 'active',
+        'subscription_type' => 'premium'
+    ],
+    // ... more users
+];
+
+$transformedUsers = $analytics->transformUserData($users);
+print_r($transformedUsers);
+```
+
+### Q10. array_column - Extract Column Values
+**Answer:** Returns the values from a single column of the input array.
+
+**Syntax:**
+```php
+array_column(array, column_key, index_key) : array
+```
+
+**Real-time Example:**
+```php
+// User Management System
+class UserManager {
+    
+    public function extractUserEmails($users) {
+        return array_column($users, 'email');
+    }
+    
+    public function createUserLookup($users) {
+        return array_column($users, 'name', 'id');
+    }
+    
+    // Real-world example: Generate reports
+    public function generateUserReport($users) {
+        // Extract specific columns
+        $userEmails = array_column($users, 'email');
+        $userNames = array_column($users, 'name', 'id');
+        $userRoles = array_column($users, 'role');
+        
+        // Count by role
+        $roleCounts = array_count_values($userRoles);
+        
+        // Get unique roles
+        $uniqueRoles = array_unique($userRoles);
+        
+        // Create email list for newsletter
+        $newsletterList = array_filter($userEmails, function($email) {
+            return filter_var($email, FILTER_VALIDATE_EMAIL);
+        });
+        
+        return [
+            'total_users' => count($users),
+            'user_emails' => $userEmails,
+            'user_lookup' => $userNames,
+            'role_distribution' => $roleCounts,
+            'unique_roles' => $uniqueRoles,
+            'newsletter_recipients' => $newsletterList
+        ];
+    }
+    
+    // Advanced column extraction
+    public function extractNestedData($users) {
+        // Extract from nested arrays
+        $addresses = array_column($users, 'address');
+        $cities = array_column($addresses, 'city');
+        $countries = array_column($addresses, 'country');
+        
+        // Create lookup tables
+        $userToCity = array_column($users, 'address', 'id');
+        $cityToUsers = [];
+        
+        foreach ($userToCity as $userId => $address) {
+            $city = $address['city'];
+            if (!isset($cityToUsers[$city])) {
+                $cityToUsers[$city] = [];
+            }
+            $cityToUsers[$city][] = $userId;
+        }
+        
+        return [
+            'cities' => $cities,
+            'countries' => $countries,
+            'city_to_users' => $cityToUsers
+        ];
+    }
+}
+
+// Usage
+$userManager = new UserManager();
+
+$users = [
+    [
+        'id' => 1,
+        'name' => 'John Doe',
+        'email' => 'john@example.com',
+        'role' => 'admin',
+        'address' => [
+            'city' => 'New York',
+            'country' => 'USA'
+        ]
+    ],
+    [
+        'id' => 2,
+        'name' => 'Jane Smith',
+        'email' => 'jane@example.com',
+        'role' => 'user',
+        'address' => [
+            'city' => 'London',
+            'country' => 'UK'
+        ]
+    ]
+];
+
+$report = $userManager->generateUserReport($users);
+print_r($report);
+```
+
+---
+
+## Array Comparison
+
+### Q11. array_diff vs array_intersect - Array Comparison
+**Answer:** Different methods to compare arrays and find differences or similarities.
+
+**Syntax:**
+```php
+array_diff(array1, array2, ...) : array
+array_intersect(array1, array2, ...) : array
+array_diff_assoc(array1, array2, ...) : array
+array_intersect_assoc(array1, array2, ...) : array
+```
+
+**Real-time Example:**
+```php
+// Inventory Management System
+class InventoryManager {
+    
+    // Find products that need restocking
+    public function findLowStockProducts($currentStock, $minimumStock) {
+        $lowStock = [];
+        
+        foreach ($currentStock as $productId => $quantity) {
+            if (isset($minimumStock[$productId]) && $quantity < $minimumStock[$productId]) {
+                $lowStock[$productId] = [
+                    'current' => $quantity,
+                    'minimum' => $minimumStock[$productId],
+                    'needed' => $minimumStock[$productId] - $quantity
+                ];
+            }
+        }
+        
+        return $lowStock;
+    }
+    
+    // Compare inventory changes
+    public function compareInventory($oldInventory, $newInventory) {
+        $added = array_diff_assoc($newInventory, $oldInventory);
+        $removed = array_diff_assoc($oldInventory, $newInventory);
+        $changed = [];
+        
+        foreach ($added as $productId => $quantity) {
+            if (isset($oldInventory[$productId])) {
+                $changed[$productId] = [
+                    'old' => $oldInventory[$productId],
+                    'new' => $quantity,
+                    'difference' => $quantity - $oldInventory[$productId]
+                ];
+                unset($added[$productId]);
+            }
+        }
+        
+        return [
+            'added' => $added,
+            'removed' => $removed,
+            'changed' => $changed
+        ];
+    }
+    
+    // Find common products between warehouses
+    public function findCommonProducts($warehouse1, $warehouse2) {
+        return array_intersect_key($warehouse1, $warehouse2);
+    }
+    
+    // Find products only in one warehouse
+    public function findUniqueProducts($warehouse1, $warehouse2) {
+        $onlyIn1 = array_diff_key($warehouse1, $warehouse2);
+        $onlyIn2 = array_diff_key($warehouse2, $warehouse1);
+        
+        return [
+            'only_in_warehouse1' => $onlyIn1,
+            'only_in_warehouse2' => $onlyIn2
+        ];
+    }
+    
+    // Real-world example: Order processing
+    public function processOrder($orderItems, $availableStock) {
+        $processedItems = [];
+        $unavailableItems = [];
+        
+        foreach ($orderItems as $productId => $requestedQuantity) {
+            if (isset($availableStock[$productId])) {
+                if ($availableStock[$productId] >= $requestedQuantity) {
+                    $processedItems[$productId] = $requestedQuantity;
+                    $availableStock[$productId] -= $requestedQuantity;
+                } else {
+                    $unavailableItems[$productId] = [
+                        'requested' => $requestedQuantity,
+                        'available' => $availableStock[$productId],
+                        'shortage' => $requestedQuantity - $availableStock[$productId]
+                    ];
+                }
+            } else {
+                $unavailableItems[$productId] = [
+                    'requested' => $requestedQuantity,
+                    'available' => 0,
+                    'shortage' => $requestedQuantity
+                ];
+            }
+        }
+        
+        return [
+            'processed' => $processedItems,
+            'unavailable' => $unavailableItems,
+            'updated_stock' => $availableStock
+        ];
+    }
+}
+
+// Usage
+$inventoryManager = new InventoryManager();
+
+// Sample data
+$currentStock = [
+    'PROD001' => 50,
+    'PROD002' => 25,
+    'PROD003' => 100,
+    'PROD004' => 5
+];
+
+$minimumStock = [
+    'PROD001' => 30,
+    'PROD002' => 50,
+    'PROD003' => 20,
+    'PROD004' => 10
+];
+
+$lowStock = $inventoryManager->findLowStockProducts($currentStock, $minimumStock);
+print_r($lowStock);
+
+// Order processing
+$orderItems = [
+    'PROD001' => 20,
+    'PROD002' => 30,
+    'PROD005' => 10
+];
+
+$orderResult = $inventoryManager->processOrder($orderItems, $currentStock);
+print_r($orderResult);
+```
+
+**Total PHP Array Functions: 50+ with comprehensive syntax definitions, real-world examples, and advanced use cases!**

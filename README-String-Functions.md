@@ -564,4 +564,929 @@ print_r($splitter->generateBreadcrumbs('/products/electronics/laptops'));
 // ]
 ```
 
-This is a comprehensive start to the string functions guide. Would you like me to continue with JavaScript/Node.js string methods, Regular Expressions, and more real-world examples?
+---
+
+## String Validation & Formatting
+
+### Q5. String Validation Functions
+**Answer:** Functions to validate and check string formats, patterns, and content.
+
+**Syntax:**
+```php
+filter_var(value, filter, options) : mixed
+preg_match(pattern, subject, matches, flags, offset) : int|false
+ctype_alpha(string) : bool
+ctype_digit(string) : bool
+is_numeric(mixed) : bool
+```
+
+**Real-time Example:**
+```php
+// Input Validation System
+class InputValidator {
+    
+    // Email validation
+    public function validateEmail($email) {
+        $email = trim($email);
+        
+        if (empty($email)) {
+            return ['valid' => false, 'error' => 'Email is required'];
+        }
+        
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return ['valid' => false, 'error' => 'Invalid email format'];
+        }
+        
+        // Check for disposable email domains
+        $domain = substr(strrchr($email, "@"), 1);
+        $disposableDomains = ['10minutemail.com', 'tempmail.org', 'guerrillamail.com'];
+        
+        if (in_array($domain, $disposableDomains)) {
+            return ['valid' => false, 'error' => 'Disposable email not allowed'];
+        }
+        
+        return ['valid' => true, 'email' => $email];
+    }
+    
+    // Phone number validation
+    public function validatePhone($phone) {
+        $phone = preg_replace('/[^0-9]/', '', $phone);
+        
+        if (strlen($phone) < 10) {
+            return ['valid' => false, 'error' => 'Phone number too short'];
+        }
+        
+        if (strlen($phone) > 15) {
+            return ['valid' => false, 'error' => 'Phone number too long'];
+        }
+        
+        // Check for valid phone patterns
+        $patterns = [
+            '/^1[0-9]{10}$/',  // US format
+            '/^[0-9]{10}$/',   // 10-digit format
+            '/^\+[1-9][0-9]{1,14}$/' // International format
+        ];
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $phone)) {
+                return ['valid' => true, 'phone' => $phone];
+            }
+        }
+        
+        return ['valid' => false, 'error' => 'Invalid phone number format'];
+    }
+    
+    // Password strength validation
+    public function validatePassword($password) {
+        $errors = [];
+        
+        if (strlen($password) < 8) {
+            $errors[] = 'Password must be at least 8 characters long';
+        }
+        
+        if (!preg_match('/[A-Z]/', $password)) {
+            $errors[] = 'Password must contain at least one uppercase letter';
+        }
+        
+        if (!preg_match('/[a-z]/', $password)) {
+            $errors[] = 'Password must contain at least one lowercase letter';
+        }
+        
+        if (!preg_match('/[0-9]/', $password)) {
+            $errors[] = 'Password must contain at least one number';
+        }
+        
+        if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+            $errors[] = 'Password must contain at least one special character';
+        }
+        
+        // Check for common passwords
+        $commonPasswords = ['password', '123456', 'qwerty', 'admin'];
+        if (in_array(strtolower($password), $commonPasswords)) {
+            $errors[] = 'Password is too common';
+        }
+        
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors,
+            'strength' => $this->calculatePasswordStrength($password)
+        ];
+    }
+    
+    private function calculatePasswordStrength($password) {
+        $score = 0;
+        
+        // Length bonus
+        $score += min(strlen($password) * 2, 20);
+        
+        // Character variety bonus
+        $score += preg_match_all('/[a-z]/', $password) * 1;
+        $score += preg_match_all('/[A-Z]/', $password) * 2;
+        $score += preg_match_all('/[0-9]/', $password) * 2;
+        $score += preg_match_all('/[^A-Za-z0-9]/', $password) * 3;
+        
+        // Pattern penalties
+        if (preg_match('/(.)\1{2,}/', $password)) {
+            $score -= 5; // Repeated characters
+        }
+        
+        if (preg_match('/123|abc|qwe/i', $password)) {
+            $score -= 3; // Sequential patterns
+        }
+        
+        return min(max($score, 0), 100);
+    }
+    
+    // URL validation
+    public function validateUrl($url) {
+        if (empty($url)) {
+            return ['valid' => false, 'error' => 'URL is required'];
+        }
+        
+        // Add protocol if missing
+        if (!preg_match('/^https?:\/\//', $url)) {
+            $url = 'https://' . $url;
+        }
+        
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return ['valid' => false, 'error' => 'Invalid URL format'];
+        }
+        
+        // Check for allowed domains
+        $allowedDomains = ['example.com', 'trusted-site.com'];
+        $domain = parse_url($url, PHP_URL_HOST);
+        
+        if (!in_array($domain, $allowedDomains)) {
+            return ['valid' => false, 'error' => 'Domain not allowed'];
+        }
+        
+        return ['valid' => true, 'url' => $url];
+    }
+    
+    // Credit card validation
+    public function validateCreditCard($cardNumber) {
+        $cardNumber = preg_replace('/[^0-9]/', '', $cardNumber);
+        
+        if (strlen($cardNumber) < 13 || strlen($cardNumber) > 19) {
+            return ['valid' => false, 'error' => 'Invalid card number length'];
+        }
+        
+        // Luhn algorithm
+        if (!$this->luhnCheck($cardNumber)) {
+            return ['valid' => false, 'error' => 'Invalid card number'];
+        }
+        
+        // Determine card type
+        $cardType = $this->getCardType($cardNumber);
+        
+        return [
+            'valid' => true,
+            'card_type' => $cardType,
+            'masked_number' => $this->maskCreditCard($cardNumber)
+        ];
+    }
+    
+    private function luhnCheck($number) {
+        $sum = 0;
+        $alternate = false;
+        
+        for ($i = strlen($number) - 1; $i >= 0; $i--) {
+            $digit = intval($number[$i]);
+            
+            if ($alternate) {
+                $digit *= 2;
+                if ($digit > 9) {
+                    $digit = ($digit % 10) + 1;
+                }
+            }
+            
+            $sum += $digit;
+            $alternate = !$alternate;
+        }
+        
+        return ($sum % 10) === 0;
+    }
+    
+    private function getCardType($number) {
+        $patterns = [
+            'visa' => '/^4[0-9]{12}(?:[0-9]{3})?$/',
+            'mastercard' => '/^5[1-5][0-9]{14}$/',
+            'amex' => '/^3[47][0-9]{13}$/',
+            'discover' => '/^6(?:011|5[0-9]{2})[0-9]{12}$/'
+        ];
+        
+        foreach ($patterns as $type => $pattern) {
+            if (preg_match($pattern, $number)) {
+                return $type;
+            }
+        }
+        
+        return 'unknown';
+    }
+    
+    private function maskCreditCard($number) {
+        return str_repeat('*', strlen($number) - 4) . substr($number, -4);
+    }
+}
+
+// Usage
+$validator = new InputValidator();
+
+// Email validation
+$emailResult = $validator->validateEmail('user@example.com');
+print_r($emailResult);
+
+// Password validation
+$passwordResult = $validator->validatePassword('MySecure123!');
+print_r($passwordResult);
+
+// Credit card validation
+$cardResult = $validator->validateCreditCard('4111111111111111');
+print_r($cardResult);
+```
+
+### Q6. Advanced String Formatting
+**Answer:** Functions for formatting strings with specific patterns, currencies, dates, and custom formats.
+
+**Syntax:**
+```php
+sprintf(format, args...) : string
+number_format(number, decimals, decimal_separator, thousands_separator) : string
+date(format, timestamp) : string
+str_pad(string, length, pad_string, pad_type) : string
+```
+
+**Real-time Example:**
+```php
+// String Formatting System
+class StringFormatter {
+    
+    // Currency formatting
+    public function formatCurrency($amount, $currency = 'USD', $locale = 'en_US') {
+        $formatters = [
+            'USD' => function($amount) {
+                return '$' . number_format($amount, 2, '.', ',');
+            },
+            'EUR' => function($amount) {
+                return '€' . number_format($amount, 2, ',', ' ');
+            },
+            'GBP' => function($amount) {
+                return '£' . number_format($amount, 2, '.', ',');
+            }
+        ];
+        
+        if (isset($formatters[$currency])) {
+            return $formatters[$currency]($amount);
+        }
+        
+        return number_format($amount, 2);
+    }
+    
+    // Phone number formatting
+    public function formatPhoneNumber($phone, $format = 'US') {
+        $phone = preg_replace('/[^0-9]/', '', $phone);
+        
+        $formatters = [
+            'US' => function($phone) {
+                if (strlen($phone) === 10) {
+                    return sprintf('(%s) %s-%s', 
+                        substr($phone, 0, 3),
+                        substr($phone, 3, 3),
+                        substr($phone, 6, 4)
+                    );
+                }
+                return $phone;
+            },
+            'International' => function($phone) {
+                if (strlen($phone) > 10) {
+                    return '+' . substr($phone, 0, -10) . ' ' . 
+                           substr($phone, -10, 3) . ' ' . 
+                           substr($phone, -7, 3) . '-' . 
+                           substr($phone, -4);
+                }
+                return $phone;
+            }
+        ];
+        
+        if (isset($formatters[$format])) {
+            return $formatters[$format]($phone);
+        }
+        
+        return $phone;
+    }
+    
+    // File size formatting
+    public function formatFileSize($bytes) {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        
+        $bytes /= pow(1024, $pow);
+        
+        return round($bytes, 2) . ' ' . $units[$pow];
+    }
+    
+    // Time formatting
+    public function formatTimeAgo($timestamp) {
+        $time = time() - $timestamp;
+        
+        if ($time < 60) {
+            return 'just now';
+        } elseif ($time < 3600) {
+            $minutes = floor($time / 60);
+            return $minutes . ' minute' . ($minutes > 1 ? 's' : '') . ' ago';
+        } elseif ($time < 86400) {
+            $hours = floor($time / 3600);
+            return $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
+        } elseif ($time < 2592000) {
+            $days = floor($time / 86400);
+            return $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
+        } else {
+            return date('M j, Y', $timestamp);
+        }
+    }
+    
+    // Text truncation with ellipsis
+    public function truncateText($text, $length = 100, $suffix = '...') {
+        if (strlen($text) <= $length) {
+            return $text;
+        }
+        
+        $truncated = substr($text, 0, $length);
+        $lastSpace = strrpos($truncated, ' ');
+        
+        if ($lastSpace !== false) {
+            $truncated = substr($truncated, 0, $lastSpace);
+        }
+        
+        return $truncated . $suffix;
+    }
+    
+    // Generate slug from text
+    public function generateSlug($text) {
+        // Convert to lowercase
+        $slug = strtolower($text);
+        
+        // Replace spaces with hyphens
+        $slug = str_replace(' ', '-', $slug);
+        
+        // Remove special characters
+        $slug = preg_replace('/[^a-z0-9\-]/', '', $slug);
+        
+        // Remove multiple hyphens
+        $slug = preg_replace('/-+/', '-', $slug);
+        
+        // Trim hyphens from ends
+        $slug = trim($slug, '-');
+        
+        return $slug;
+    }
+    
+    // Format address
+    public function formatAddress($address) {
+        $formatted = [];
+        
+        if (!empty($address['street'])) {
+            $formatted[] = $address['street'];
+        }
+        
+        if (!empty($address['city']) || !empty($address['state']) || !empty($address['zip'])) {
+            $cityStateZip = [];
+            if (!empty($address['city'])) $cityStateZip[] = $address['city'];
+            if (!empty($address['state'])) $cityStateZip[] = $address['state'];
+            if (!empty($address['zip'])) $cityStateZip[] = $address['zip'];
+            
+            $formatted[] = implode(', ', $cityStateZip);
+        }
+        
+        if (!empty($address['country'])) {
+            $formatted[] = $address['country'];
+        }
+        
+        return implode("\n", $formatted);
+    }
+    
+    // Format table data
+    public function formatTable($data, $columns = null) {
+        if (empty($data)) {
+            return '';
+        }
+        
+        // Auto-detect columns if not provided
+        if ($columns === null) {
+            $columns = array_keys($data[0]);
+        }
+        
+        // Calculate column widths
+        $widths = [];
+        foreach ($columns as $column) {
+            $widths[$column] = strlen($column);
+            foreach ($data as $row) {
+                $widths[$column] = max($widths[$column], strlen($row[$column] ?? ''));
+            }
+        }
+        
+        // Build table
+        $table = [];
+        
+        // Header
+        $header = [];
+        foreach ($columns as $column) {
+            $header[] = str_pad($column, $widths[$column]);
+        }
+        $table[] = implode(' | ', $header);
+        
+        // Separator
+        $separator = [];
+        foreach ($columns as $column) {
+            $separator[] = str_repeat('-', $widths[$column]);
+        }
+        $table[] = implode('-+-', $separator);
+        
+        // Rows
+        foreach ($data as $row) {
+            $rowData = [];
+            foreach ($columns as $column) {
+                $rowData[] = str_pad($row[$column] ?? '', $widths[$column]);
+            }
+            $table[] = implode(' | ', $rowData);
+        }
+        
+        return implode("\n", $table);
+    }
+}
+
+// Usage
+$formatter = new StringFormatter();
+
+// Currency formatting
+echo $formatter->formatCurrency(1234.56, 'USD'); // $1,234.56
+echo $formatter->formatCurrency(1234.56, 'EUR'); // €1 234,56
+
+// Phone formatting
+echo $formatter->formatPhoneNumber('1234567890'); // (123) 456-7890
+
+// File size formatting
+echo $formatter->formatFileSize(1024); // 1 KB
+echo $formatter->formatFileSize(1048576); // 1 MB
+
+// Time formatting
+echo $formatter->formatTimeAgo(time() - 3600); // 1 hour ago
+
+// Text truncation
+echo $formatter->truncateText('This is a very long text that needs to be truncated', 20);
+// This is a very long...
+
+// Slug generation
+echo $formatter->generateSlug('My Blog Post Title!'); // my-blog-post-title
+```
+
+---
+
+## Regular Expressions
+
+### Q7. PHP Regular Expression Functions
+**Answer:** Functions for pattern matching, replacement, and validation using regular expressions.
+
+**Syntax:**
+```php
+preg_match(pattern, subject, matches, flags, offset) : int|false
+preg_match_all(pattern, subject, matches, flags, offset) : int|false
+preg_replace(pattern, replacement, subject, limit, count) : string|array
+preg_split(pattern, subject, limit, flags) : array
+preg_grep(pattern, input, flags) : array
+```
+
+**Real-time Example:**
+```php
+// Text Processing and Pattern Matching System
+class TextProcessor {
+    
+    // Extract email addresses from text
+    public function extractEmails($text) {
+        $pattern = '/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/';
+        preg_match_all($pattern, $text, $matches);
+        return $matches[0];
+    }
+    
+    // Extract URLs from text
+    public function extractUrls($text) {
+        $pattern = '/https?:\/\/[^\s<>"{}|\\^`\[\]]+/';
+        preg_match_all($pattern, $text, $matches);
+        return $matches[0];
+    }
+    
+    // Extract phone numbers
+    public function extractPhoneNumbers($text) {
+        $patterns = [
+            '/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/',  // US format
+            '/\b\(\d{3}\)\s*\d{3}[-.]?\d{4}\b/', // (123) 456-7890
+            '/\b\+1[-.]?\d{3}[-.]?\d{3}[-.]?\d{4}\b/' // +1-123-456-7890
+        ];
+        
+        $phones = [];
+        foreach ($patterns as $pattern) {
+            preg_match_all($pattern, $text, $matches);
+            $phones = array_merge($phones, $matches[0]);
+        }
+        
+        return array_unique($phones);
+    }
+    
+    // Clean HTML tags
+    public function stripHtmlTags($html, $allowedTags = '') {
+        if (empty($allowedTags)) {
+            return strip_tags($html);
+        }
+        
+        return strip_tags($html, $allowedTags);
+    }
+    
+    // Remove extra whitespace
+    public function normalizeWhitespace($text) {
+        // Replace multiple spaces with single space
+        $text = preg_replace('/\s+/', ' ', $text);
+        
+        // Remove leading/trailing whitespace
+        $text = trim($text);
+        
+        return $text;
+    }
+    
+    // Extract hashtags and mentions
+    public function extractSocialMedia($text) {
+        $hashtags = [];
+        $mentions = [];
+        
+        // Extract hashtags
+        preg_match_all('/#\w+/', $text, $hashtagMatches);
+        $hashtags = $hashtagMatches[0];
+        
+        // Extract mentions
+        preg_match_all('/@\w+/', $text, $mentionMatches);
+        $mentions = $mentionMatches[0];
+        
+        return [
+            'hashtags' => $hashtags,
+            'mentions' => $mentions
+        ];
+    }
+    
+    // Validate and format credit card numbers
+    public function processCreditCards($text) {
+        // Find potential credit card numbers
+        $pattern = '/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/';
+        preg_match_all($pattern, $text, $matches);
+        
+        $processed = [];
+        foreach ($matches[0] as $card) {
+            // Remove spaces and dashes
+            $cleanCard = preg_replace('/[\s-]/', '', $card);
+            
+            // Mask the card number
+            $masked = $this->maskCreditCard($cleanCard);
+            
+            $processed[] = [
+                'original' => $card,
+                'masked' => $masked,
+                'valid' => $this->validateCreditCard($cleanCard)
+            ];
+        }
+        
+        return $processed;
+    }
+    
+    private function maskCreditCard($cardNumber) {
+        if (strlen($cardNumber) < 8) {
+            return str_repeat('*', strlen($cardNumber));
+        }
+        
+        return str_repeat('*', strlen($cardNumber) - 4) . substr($cardNumber, -4);
+    }
+    
+    private function validateCreditCard($cardNumber) {
+        // Luhn algorithm
+        $sum = 0;
+        $alternate = false;
+        
+        for ($i = strlen($cardNumber) - 1; $i >= 0; $i--) {
+            $digit = intval($cardNumber[$i]);
+            
+            if ($alternate) {
+                $digit *= 2;
+                if ($digit > 9) {
+                    $digit = ($digit % 10) + 1;
+                }
+            }
+            
+            $sum += $digit;
+            $alternate = !$alternate;
+        }
+        
+        return ($sum % 10) === 0;
+    }
+    
+    // Advanced text parsing
+    public function parseText($text) {
+        $result = [
+            'word_count' => str_word_count($text),
+            'character_count' => strlen($text),
+            'sentence_count' => preg_match_all('/[.!?]+/', $text),
+            'paragraph_count' => substr_count($text, "\n\n") + 1,
+            'emails' => $this->extractEmails($text),
+            'urls' => $this->extractUrls($text),
+            'phones' => $this->extractPhoneNumbers($text),
+            'social' => $this->extractSocialMedia($text),
+            'credit_cards' => $this->processCreditCards($text)
+        ];
+        
+        return $result;
+    }
+    
+    // Text sanitization
+    public function sanitizeText($text, $options = []) {
+        $defaults = [
+            'remove_html' => true,
+            'remove_scripts' => true,
+            'normalize_whitespace' => true,
+            'remove_emails' => false,
+            'remove_phones' => false,
+            'remove_urls' => false
+        ];
+        
+        $options = array_merge($defaults, $options);
+        
+        if ($options['remove_html']) {
+            $text = strip_tags($text);
+        }
+        
+        if ($options['remove_scripts']) {
+            $text = preg_replace('/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/mi', '', $text);
+        }
+        
+        if ($options['remove_emails']) {
+            $text = preg_replace('/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/', '[EMAIL]', $text);
+        }
+        
+        if ($options['remove_phones']) {
+            $text = preg_replace('/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/', '[PHONE]', $text);
+        }
+        
+        if ($options['remove_urls']) {
+            $text = preg_replace('/https?:\/\/[^\s<>"{}|\\^`\[\]]+/', '[URL]', $text);
+        }
+        
+        if ($options['normalize_whitespace']) {
+            $text = $this->normalizeWhitespace($text);
+        }
+        
+        return $text;
+    }
+}
+
+// Usage
+$processor = new TextProcessor();
+
+$text = "Contact us at john@example.com or call (555) 123-4567. Visit https://example.com for more info. #webdev @username";
+
+$result = $processor->parseText($text);
+print_r($result);
+
+// Sanitize text
+$sanitized = $processor->sanitizeText($text, [
+    'remove_emails' => true,
+    'remove_phones' => true,
+    'remove_urls' => true
+]);
+echo $sanitized;
+```
+
+---
+
+## JavaScript/Node.js String Methods
+
+### Q8. JavaScript String Methods
+**Answer:** JavaScript provides powerful string methods for manipulation and processing.
+
+**Syntax:**
+```javascript
+string.method(parameters) : returnType
+```
+
+**Real-time Example:**
+```javascript
+// Modern JavaScript String Processing
+class StringProcessor {
+    
+    // Basic string methods
+    processBasicStrings() {
+        const text = "  Hello World  ";
+        
+        // Trim whitespace
+        const trimmed = text.trim();
+        console.log(trimmed); // "Hello World"
+        
+        // Case conversion
+        const upper = text.toUpperCase();
+        const lower = text.toLowerCase();
+        
+        // Replace text
+        const replaced = text.replace('World', 'Universe');
+        
+        // Split and join
+        const words = text.trim().split(' ');
+        const joined = words.join('-');
+        
+        return {
+            original: text,
+            trimmed,
+            upper,
+            lower,
+            replaced,
+            words,
+            joined
+        };
+    }
+    
+    // Advanced string manipulation
+    processAdvancedStrings() {
+        const text = "JavaScript is awesome!";
+        
+        // Check if string starts/ends with
+        const startsWith = text.startsWith('Java');
+        const endsWith = text.endsWith('!');
+        
+        // Find index of substring
+        const index = text.indexOf('awesome');
+        const lastIndex = text.lastIndexOf('a');
+        
+        // Extract substring
+        const substring = text.substring(0, 10);
+        const slice = text.slice(-8); // Last 8 characters
+        
+        // Check if string includes substring
+        const includes = text.includes('awesome');
+        
+        return {
+            startsWith,
+            endsWith,
+            index,
+            lastIndex,
+            substring,
+            slice,
+            includes
+        };
+    }
+    
+    // Template literals
+    processTemplateLiterals() {
+        const name = 'John';
+        const age = 30;
+        const city = 'New York';
+        
+        // Basic template literal
+        const greeting = `Hello, my name is ${name} and I'm ${age} years old.`;
+        
+        // Multi-line template
+        const bio = `
+            Name: ${name}
+            Age: ${age}
+            City: ${city}
+        `;
+        
+        // Expression in template
+        const calculation = `The result is ${age * 2}`;
+        
+        return {
+            greeting,
+            bio,
+            calculation
+        };
+    }
+    
+    // Regular expressions with strings
+    processWithRegex() {
+        const text = "Contact us at john@example.com or call (555) 123-4567";
+        
+        // Email pattern
+        const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+        const emails = text.match(emailPattern);
+        
+        // Phone pattern
+        const phonePattern = /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g;
+        const phones = text.match(phonePattern);
+        
+        // Replace with function
+        const masked = text.replace(phonePattern, (match) => {
+            return match.replace(/\d/g, '*');
+        });
+        
+        return {
+            emails,
+            phones,
+            masked
+        };
+    }
+    
+    // String validation
+    validateStrings() {
+        const validators = {
+            email: (email) => {
+                const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return pattern.test(email);
+            },
+            
+            phone: (phone) => {
+                const pattern = /^\(\d{3}\)\s?\d{3}-\d{4}$/;
+                return pattern.test(phone);
+            },
+            
+            url: (url) => {
+                try {
+                    new URL(url);
+                    return true;
+                } catch {
+                    return false;
+                }
+            },
+            
+            strongPassword: (password) => {
+                // At least 8 characters, 1 uppercase, 1 lowercase, 1 number, 1 special char
+                const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+                return pattern.test(password);
+            }
+        };
+        
+        return validators;
+    }
+    
+    // String formatting utilities
+    formatStrings() {
+        const formatters = {
+            currency: (amount, currency = 'USD') => {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: currency
+                }).format(amount);
+            },
+            
+            date: (date, locale = 'en-US') => {
+                return new Intl.DateTimeFormat(locale).format(new Date(date));
+            },
+            
+            capitalize: (text) => {
+                return text.replace(/\b\w/g, char => char.toUpperCase());
+            },
+            
+            slug: (text) => {
+                return text
+                    .toLowerCase()
+                    .replace(/[^a-z0-9 -]/g, '')
+                    .replace(/\s+/g, '-')
+                    .replace(/-+/g, '-')
+                    .trim('-');
+            },
+            
+            truncate: (text, length = 100, suffix = '...') => {
+                if (text.length <= length) return text;
+                return text.substring(0, length - suffix.length) + suffix;
+            }
+        };
+        
+        return formatters;
+    }
+}
+
+// Usage examples
+const processor = new StringProcessor();
+
+// Basic processing
+const basic = processor.processBasicStrings();
+console.log(basic);
+
+// Advanced processing
+const advanced = processor.processAdvancedStrings();
+console.log(advanced);
+
+// Template literals
+const templates = processor.processTemplateLiterals();
+console.log(templates);
+
+// Regex processing
+const regex = processor.processWithRegex();
+console.log(regex);
+
+// Validation
+const validators = processor.validateStrings();
+console.log(validators.email('test@example.com')); // true
+console.log(validators.phone('(555) 123-4567')); // true
+
+// Formatting
+const formatters = processor.formatStrings();
+console.log(formatters.currency(1234.56)); // $1,234.56
+console.log(formatters.capitalize('hello world')); // Hello World
+console.log(formatters.slug('Hello World!')); // hello-world
+```
+
+**Total String Functions: 100+ with comprehensive syntax definitions, real-world examples, and advanced use cases for both PHP and JavaScript!**
