@@ -1342,4 +1342,781 @@ $orderResult = $inventoryManager->processOrder($orderItems, $currentStock);
 print_r($orderResult);
 ```
 
+---
+
+## Array Keys & Values
+
+### Q12. array_keys vs array_values vs array_flip
+**Answer:** Different functions to work with array keys and values.
+
+**Syntax:**
+```php
+array_keys(array, search_value, strict) : array
+array_values(array) : array
+array_flip(array) : array
+array_reverse(array, preserve_keys) : array
+```
+
+**Real-time Example:**
+```php
+// User Data Management System
+class UserDataManager {
+    
+    // array_keys - Get all keys from array
+    public function getUserIds($users) {
+        return array_keys($users);
+    }
+    
+    // array_values - Get all values from array
+    public function getUserNames($users) {
+        return array_values($users);
+    }
+    
+    // array_flip - Exchange keys and values
+    public function createUserLookup($users) {
+        return array_flip($users);
+    }
+    
+    // array_reverse - Reverse array order
+    public function getRecentUsers($users) {
+        return array_reverse($users, true);
+    }
+    
+    // Real-world example: User analytics
+    public function analyzeUserData($users) {
+        // Get user IDs
+        $userIds = array_keys($users);
+        
+        // Get user names
+        $userNames = array_values($users);
+        
+        // Create reverse lookup (name => id)
+        $nameToId = array_flip($users);
+        
+        // Get unique names
+        $uniqueNames = array_unique($userNames);
+        
+        // Count name occurrences
+        $nameCounts = array_count_values($userNames);
+        
+        // Find duplicate names
+        $duplicateNames = array_filter($nameCounts, function($count) {
+            return $count > 1;
+        });
+        
+        return [
+            'user_ids' => $userIds,
+            'user_names' => $userNames,
+            'name_to_id_lookup' => $nameToId,
+            'unique_names' => $uniqueNames,
+            'name_counts' => $nameCounts,
+            'duplicate_names' => $duplicateNames,
+            'total_users' => count($users)
+        ];
+    }
+    
+    // Advanced key/value manipulation
+    public function transformUserRoles($users) {
+        // Extract roles
+        $roles = array_column($users, 'role', 'id');
+        
+        // Create role-based groups
+        $roleGroups = [];
+        foreach ($roles as $userId => $role) {
+            $roleGroups[$role][] = $userId;
+        }
+        
+        // Get unique roles
+        $uniqueRoles = array_unique(array_values($roles));
+        
+        // Create role hierarchy
+        $roleHierarchy = [
+            'admin' => 3,
+            'moderator' => 2,
+            'user' => 1
+        ];
+        
+        // Sort users by role hierarchy
+        $sortedUsers = [];
+        foreach ($roleGroups as $role => $userIds) {
+            $sortedUsers[$role] = $userIds;
+        }
+        
+        return [
+            'roles' => $roles,
+            'role_groups' => $roleGroups,
+            'unique_roles' => $uniqueRoles,
+            'role_hierarchy' => $roleHierarchy,
+            'sorted_by_role' => $sortedUsers
+        ];
+    }
+}
+
+// Usage
+$userManager = new UserDataManager();
+
+$users = [
+    1 => 'John Doe',
+    2 => 'Jane Smith', 
+    3 => 'John Doe', // Duplicate name
+    4 => 'Bob Wilson',
+    5 => 'Jane Smith' // Duplicate name
+];
+
+$analysis = $userManager->analyzeUserData($users);
+print_r($analysis);
+
+// Role-based example
+$usersWithRoles = [
+    ['id' => 1, 'name' => 'John', 'role' => 'admin'],
+    ['id' => 2, 'name' => 'Jane', 'role' => 'user'],
+    ['id' => 3, 'name' => 'Bob', 'role' => 'moderator'],
+    ['id' => 4, 'name' => 'Alice', 'role' => 'user']
+];
+
+$roleAnalysis = $userManager->transformUserRoles($usersWithRoles);
+print_r($roleAnalysis);
+```
+
+### Q13. array_unique vs array_count_values
+**Answer:** Functions to handle duplicate values and count occurrences.
+
+**Real-time Example:**
+```php
+// Product Catalog System
+class ProductCatalog {
+    
+    // Remove duplicate products
+    public function removeDuplicateProducts($products) {
+        return array_unique($products, SORT_REGULAR);
+    }
+    
+    // Count product occurrences
+    public function countProductOccurrences($products) {
+        return array_count_values($products);
+    }
+    
+    // Find most popular products
+    public function findPopularProducts($products, $limit = 5) {
+        $counts = array_count_values($products);
+        arsort($counts);
+        return array_slice($counts, 0, $limit, true);
+    }
+    
+    // Real-world example: E-commerce analytics
+    public function analyzeProductViews($viewHistory) {
+        // Get unique products viewed
+        $uniqueProducts = array_unique($viewHistory);
+        
+        // Count views per product
+        $viewCounts = array_count_values($viewHistory);
+        
+        // Sort by popularity
+        arsort($viewCounts);
+        
+        // Get top 10 most viewed
+        $topProducts = array_slice($viewCounts, 0, 10, true);
+        
+        // Find products with single view
+        $singleViewProducts = array_filter($viewCounts, function($count) {
+            return $count === 1;
+        });
+        
+        // Calculate statistics
+        $totalViews = array_sum($viewCounts);
+        $averageViews = $totalViews / count($uniqueProducts);
+        
+        return [
+            'unique_products' => $uniqueProducts,
+            'view_counts' => $viewCounts,
+            'top_products' => $topProducts,
+            'single_view_products' => $singleViewProducts,
+            'total_views' => $totalViews,
+            'average_views' => $averageViews,
+            'total_unique_products' => count($uniqueProducts)
+        ];
+    }
+}
+
+// Usage
+$catalog = new ProductCatalog();
+
+$viewHistory = [
+    'PROD001', 'PROD002', 'PROD001', 'PROD003', 'PROD001',
+    'PROD002', 'PROD004', 'PROD001', 'PROD002', 'PROD005'
+];
+
+$analysis = $catalog->analyzeProductViews($viewHistory);
+print_r($analysis);
+```
+
+---
+
+## Array Stack & Queue Operations
+
+### Q14. array_push vs array_pop vs array_shift vs array_unshift
+**Answer:** Different functions for stack (LIFO) and queue (FIFO) operations.
+
+**Syntax:**
+```php
+array_push(array, value1, value2, ...) : int
+array_pop(array) : mixed
+array_shift(array) : mixed
+array_unshift(array, value1, value2, ...) : int
+```
+
+**Real-time Example:**
+```php
+// Task Management System
+class TaskManager {
+    private $taskQueue = [];
+    private $completedTasks = [];
+    
+    // Stack operations (LIFO)
+    public function addTaskToStack($task) {
+        array_push($this->taskQueue, $task);
+        return count($this->taskQueue);
+    }
+    
+    public function processLastTask() {
+        if (empty($this->taskQueue)) {
+            return null;
+        }
+        
+        $task = array_pop($this->taskQueue);
+        $this->completedTasks[] = $task;
+        return $task;
+    }
+    
+    // Queue operations (FIFO)
+    public function addTaskToQueue($task) {
+        array_unshift($this->taskQueue, $task);
+        return count($this->taskQueue);
+    }
+    
+    public function processFirstTask() {
+        if (empty($this->taskQueue)) {
+            return null;
+        }
+        
+        $task = array_shift($this->taskQueue);
+        $this->completedTasks[] = $task;
+        return $task;
+    }
+    
+    // Real-world example: Priority task system
+    public function addPriorityTask($task, $priority = 'normal') {
+        $taskWithPriority = [
+            'task' => $task,
+            'priority' => $priority,
+            'added_at' => time()
+        ];
+        
+        if ($priority === 'high') {
+            // Add to front of queue
+            array_unshift($this->taskQueue, $taskWithPriority);
+        } else {
+            // Add to back of queue
+            array_push($this->taskQueue, $taskWithPriority);
+        }
+        
+        return count($this->taskQueue);
+    }
+    
+    public function processNextTask() {
+        if (empty($this->taskQueue)) {
+            return null;
+        }
+        
+        // Process first task (FIFO)
+        $task = array_shift($this->taskQueue);
+        $this->completedTasks[] = $task;
+        
+        return $task;
+    }
+    
+    public function getQueueStatus() {
+        return [
+            'pending_tasks' => count($this->taskQueue),
+            'completed_tasks' => count($this->completedTasks),
+            'next_task' => !empty($this->taskQueue) ? $this->taskQueue[0] : null,
+            'last_completed' => !empty($this->completedTasks) ? end($this->completedTasks) : null
+        ];
+    }
+    
+    public function getTaskQueue() {
+        return $this->taskQueue;
+    }
+    
+    public function getCompletedTasks() {
+        return $this->completedTasks;
+    }
+}
+
+// Usage
+$taskManager = new TaskManager();
+
+// Add tasks with different priorities
+$taskManager->addPriorityTask('Fix critical bug', 'high');
+$taskManager->addPriorityTask('Update documentation', 'normal');
+$taskManager->addPriorityTask('Code review', 'normal');
+$taskManager->addPriorityTask('Security patch', 'high');
+
+echo "Initial Queue:\n";
+print_r($taskManager->getTaskQueue());
+
+// Process tasks
+echo "\nProcessing tasks:\n";
+while ($task = $taskManager->processNextTask()) {
+    echo "Processed: " . $task['task'] . " (Priority: " . $task['priority'] . ")\n";
+}
+
+echo "\nCompleted Tasks:\n";
+print_r($taskManager->getCompletedTasks());
+
+echo "\nQueue Status:\n";
+print_r($taskManager->getQueueStatus());
+```
+
+### Q15. Array as Stack Implementation
+**Real-time Example:**
+```php
+// Undo/Redo System
+class UndoRedoManager {
+    private $undoStack = [];
+    private $redoStack = [];
+    
+    public function performAction($action) {
+        // Add to undo stack
+        array_push($this->undoStack, $action);
+        
+        // Clear redo stack when new action is performed
+        $this->redoStack = [];
+        
+        return $action;
+    }
+    
+    public function undo() {
+        if (empty($this->undoStack)) {
+            return null;
+        }
+        
+        $action = array_pop($this->undoStack);
+        array_push($this->redoStack, $action);
+        
+        return $action;
+    }
+    
+    public function redo() {
+        if (empty($this->redoStack)) {
+            return null;
+        }
+        
+        $action = array_pop($this->redoStack);
+        array_push($this->undoStack, $action);
+        
+        return $action;
+    }
+    
+    public function getStackStatus() {
+        return [
+            'undo_count' => count($this->undoStack),
+            'redo_count' => count($this->redoStack),
+            'can_undo' => !empty($this->undoStack),
+            'can_redo' => !empty($this->redoStack)
+        ];
+    }
+}
+
+// Usage
+$undoManager = new UndoRedoManager();
+
+// Perform actions
+$undoManager->performAction('Create document');
+$undoManager->performAction('Add text');
+$undoManager->performAction('Format text');
+
+echo "After actions:\n";
+print_r($undoManager->getStackStatus());
+
+// Undo actions
+echo "\nUndoing:\n";
+echo "Undone: " . $undoManager->undo() . "\n";
+echo "Undone: " . $undoManager->undo() . "\n";
+
+echo "\nAfter undos:\n";
+print_r($undoManager->getStackStatus());
+
+// Redo actions
+echo "\nRedoing:\n";
+echo "Redone: " . $undoManager->redo() . "\n";
+
+echo "\nFinal status:\n";
+print_r($undoManager->getStackStatus());
+```
+
+---
+
+## Real-World Use Cases
+
+### Q16. E-commerce Shopping Cart System
+**Complete implementation using multiple array functions:**
+
+```php
+class ShoppingCartSystem {
+    private $cart = [];
+    private $products = [];
+    private $discounts = [];
+    
+    public function __construct() {
+        $this->initializeProducts();
+        $this->initializeDiscounts();
+    }
+    
+    private function initializeProducts() {
+        $this->products = [
+            'PROD001' => [
+                'id' => 'PROD001',
+                'name' => 'Laptop',
+                'price' => 999.99,
+                'category' => 'Electronics',
+                'stock' => 10,
+                'rating' => 4.5
+            ],
+            'PROD002' => [
+                'id' => 'PROD002', 
+                'name' => 'Mouse',
+                'price' => 29.99,
+                'category' => 'Electronics',
+                'stock' => 50,
+                'rating' => 4.0
+            ],
+            'PROD003' => [
+                'id' => 'PROD003',
+                'name' => 'Book',
+                'price' => 19.99,
+                'category' => 'Books',
+                'stock' => 100,
+                'rating' => 4.8
+            ]
+        ];
+    }
+    
+    private function initializeDiscounts() {
+        $this->discounts = [
+            'BULK10' => ['type' => 'percentage', 'value' => 10, 'min_quantity' => 5],
+            'FREESHIP' => ['type' => 'shipping', 'value' => 0, 'min_total' => 100],
+            'SAVE20' => ['type' => 'percentage', 'value' => 20, 'min_total' => 200]
+        ];
+    }
+    
+    // Add product to cart
+    public function addToCart($productId, $quantity = 1) {
+        if (!array_key_exists($productId, $this->products)) {
+            throw new Exception("Product not found");
+        }
+        
+        $product = $this->products[$productId];
+        
+        // Check stock
+        if ($product['stock'] < $quantity) {
+            throw new Exception("Insufficient stock");
+        }
+        
+        // Check if product already in cart
+        $cartProductIds = array_column($this->cart, 'product_id');
+        
+        if (in_array($productId, $cartProductIds)) {
+            // Update quantity
+            $index = array_search($productId, $cartProductIds);
+            $this->cart[$index]['quantity'] += $quantity;
+        } else {
+            // Add new item
+            array_push($this->cart, [
+                'product_id' => $productId,
+                'name' => $product['name'],
+                'price' => $product['price'],
+                'quantity' => $quantity,
+                'category' => $product['category']
+            ]);
+        }
+        
+        return $this->cart;
+    }
+    
+    // Remove from cart
+    public function removeFromCart($productId) {
+        $cartProductIds = array_column($this->cart, 'product_id');
+        $index = array_search($productId, $cartProductIds);
+        
+        if ($index !== false) {
+            array_splice($this->cart, $index, 1);
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Apply discount
+    public function applyDiscount($discountCode) {
+        if (!array_key_exists($discountCode, $this->discounts)) {
+            throw new Exception("Invalid discount code");
+        }
+        
+        $discount = $this->discounts[$discountCode];
+        $total = $this->getSubtotal();
+        
+        // Check minimum requirements
+        if (isset($discount['min_total']) && $total < $discount['min_total']) {
+            throw new Exception("Minimum total not met");
+        }
+        
+        if (isset($discount['min_quantity'])) {
+            $totalQuantity = array_sum(array_column($this->cart, 'quantity'));
+            if ($totalQuantity < $discount['min_quantity']) {
+                throw new Exception("Minimum quantity not met");
+            }
+        }
+        
+        return $discount;
+    }
+    
+    // Calculate totals
+    public function getSubtotal() {
+        return array_reduce($this->cart, function($carry, $item) {
+            return $carry + ($item['price'] * $item['quantity']);
+        }, 0);
+    }
+    
+    public function getTotal($discountCode = null) {
+        $subtotal = $this->getSubtotal();
+        $discount = 0;
+        $shipping = $this->calculateShipping();
+        
+        if ($discountCode && array_key_exists($discountCode, $this->discounts)) {
+            $discountData = $this->discounts[$discountCode];
+            
+            if ($discountData['type'] === 'percentage') {
+                $discount = $subtotal * ($discountData['value'] / 100);
+            } elseif ($discountData['type'] === 'shipping') {
+                $shipping = 0;
+            }
+        }
+        
+        return $subtotal - $discount + $shipping;
+    }
+    
+    private function calculateShipping() {
+        $total = $this->getSubtotal();
+        return $total >= 100 ? 0 : 10;
+    }
+    
+    // Filter cart by category
+    public function filterCartByCategory($category) {
+        return array_filter($this->cart, function($item) use ($category) {
+            return $item['category'] === $category;
+        });
+    }
+    
+    // Sort cart by price
+    public function sortCartByPrice($order = 'asc') {
+        if ($order === 'asc') {
+            usort($this->cart, function($a, $b) {
+                return $a['price'] <=> $b['price'];
+            });
+        } else {
+            usort($this->cart, function($a, $b) {
+                return $b['price'] <=> $a['price'];
+            });
+        }
+        
+        return $this->cart;
+    }
+    
+    // Get cart summary
+    public function getCartSummary() {
+        $subtotal = $this->getSubtotal();
+        $shipping = $this->calculateShipping();
+        $total = $subtotal + $shipping;
+        
+        // Group by category
+        $categoryGroups = [];
+        foreach ($this->cart as $item) {
+            $categoryGroups[$item['category']][] = $item;
+        }
+        
+        // Get product statistics
+        $productCounts = array_count_values(array_column($this->cart, 'name'));
+        $totalItems = array_sum(array_column($this->cart, 'quantity'));
+        
+        return [
+            'items' => $this->cart,
+            'subtotal' => $subtotal,
+            'shipping' => $shipping,
+            'total' => $total,
+            'category_groups' => $categoryGroups,
+            'product_counts' => $productCounts,
+            'total_items' => $totalItems,
+            'item_count' => count($this->cart)
+        ];
+    }
+    
+    // Clear cart
+    public function clearCart() {
+        $this->cart = [];
+        return true;
+    }
+}
+
+// Usage
+$cart = new ShoppingCartSystem();
+
+// Add products
+$cart->addToCart('PROD001', 1);
+$cart->addToCart('PROD002', 2);
+$cart->addToCart('PROD003', 1);
+
+echo "Cart Summary:\n";
+print_r($cart->getCartSummary());
+
+// Apply discount
+try {
+    $discount = $cart->applyDiscount('BULK10');
+    echo "\nApplied discount: " . $discount['value'] . "% off\n";
+} catch (Exception $e) {
+    echo "\nDiscount error: " . $e->getMessage() . "\n";
+}
+
+// Filter by category
+echo "\nElectronics in cart:\n";
+print_r($cart->filterCartByCategory('Electronics'));
+
+// Sort by price
+echo "\nCart sorted by price (descending):\n";
+print_r($cart->sortCartByPrice('desc'));
+```
+
+### Q17. Data Processing Pipeline
+**Complete data transformation pipeline:**
+
+```php
+class DataProcessingPipeline {
+    
+    public function processUserData($rawData) {
+        // Step 1: Clean and validate data
+        $cleanedData = $this->cleanData($rawData);
+        
+        // Step 2: Transform data
+        $transformedData = $this->transformData($cleanedData);
+        
+        // Step 3: Filter active users
+        $activeUsers = $this->filterActiveUsers($transformedData);
+        
+        // Step 4: Calculate statistics
+        $statistics = $this->calculateStatistics($activeUsers);
+        
+        // Step 5: Generate reports
+        $reports = $this->generateReports($activeUsers, $statistics);
+        
+        return [
+            'processed_data' => $activeUsers,
+            'statistics' => $statistics,
+            'reports' => $reports,
+            'total_processed' => count($activeUsers)
+        ];
+    }
+    
+    private function cleanData($data) {
+        return array_filter($data, function($user) {
+            return !empty($user['email']) && 
+                   filter_var($user['email'], FILTER_VALIDATE_EMAIL) &&
+                   !empty($user['name']);
+        });
+    }
+    
+    private function transformData($data) {
+        return array_map(function($user) {
+            return [
+                'id' => $user['id'],
+                'name' => trim(strtoupper($user['name'])),
+                'email' => strtolower(trim($user['email'])),
+                'age' => $this->calculateAge($user['birth_date']),
+                'status' => $user['status'] ?? 'inactive',
+                'created_at' => $user['created_at'],
+                'last_login' => $user['last_login'] ?? null
+            ];
+        }, $data);
+    }
+    
+    private function filterActiveUsers($data) {
+        return array_filter($data, function($user) {
+            return $user['status'] === 'active';
+        });
+    }
+    
+    private function calculateAge($birthDate) {
+        return date_diff(date_create($birthDate), date_create('now'))->y;
+    }
+    
+    private function calculateStatistics($users) {
+        $ages = array_column($users, 'age');
+        $emails = array_column($users, 'email');
+        $domains = array_map(function($email) {
+            return substr(strrchr($email, "@"), 1);
+        }, $emails);
+        
+        return [
+            'total_users' => count($users),
+            'average_age' => array_sum($ages) / count($ages),
+            'min_age' => min($ages),
+            'max_age' => max($ages),
+            'domain_distribution' => array_count_values($domains),
+            'unique_domains' => count(array_unique($domains))
+        ];
+    }
+    
+    private function generateReports($users, $statistics) {
+        // Group by age ranges
+        $ageGroups = [];
+        foreach ($users as $user) {
+            $ageRange = $this->getAgeRange($user['age']);
+            $ageGroups[$ageRange][] = $user;
+        }
+        
+        // Sort by creation date
+        $sortedUsers = $users;
+        usort($sortedUsers, function($a, $b) {
+            return strtotime($a['created_at']) <=> strtotime($b['created_at']);
+        });
+        
+        return [
+            'age_groups' => $ageGroups,
+            'recent_users' => array_slice($sortedUsers, -10),
+            'oldest_users' => array_slice($sortedUsers, 0, 10),
+            'statistics' => $statistics
+        ];
+    }
+    
+    private function getAgeRange($age) {
+        if ($age < 18) return 'Under 18';
+        if ($age < 25) return '18-24';
+        if ($age < 35) return '25-34';
+        if ($age < 50) return '35-49';
+        return '50+';
+    }
+}
+
+// Usage
+$pipeline = new DataProcessingPipeline();
+
+$rawData = [
+    ['id' => 1, 'name' => 'John Doe', 'email' => 'john@example.com', 'birth_date' => '1990-01-01', 'status' => 'active', 'created_at' => '2020-01-01'],
+    ['id' => 2, 'name' => 'Jane Smith', 'email' => 'jane@test.com', 'birth_date' => '1985-05-15', 'status' => 'active', 'created_at' => '2019-06-01'],
+    ['id' => 3, 'name' => 'Bob Wilson', 'email' => 'bob@company.org', 'birth_date' => '1995-12-10', 'status' => 'inactive', 'created_at' => '2021-03-15']
+];
+
+$result = $pipeline->processUserData($rawData);
+print_r($result);
+```
+
 **Total PHP Array Functions: 50+ with comprehensive syntax definitions, real-world examples, and advanced use cases!**
