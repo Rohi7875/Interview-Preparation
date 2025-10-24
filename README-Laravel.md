@@ -1905,6 +1905,804 @@ $users = User::whereColumn('updated_at', '>', 'created_at')->get();
 
 ---
 
+## Service Container & Service Providers
+
+### Q81. What is Laravel's Service Container and how does it work?
+**Answer:** The Service Container is Laravel's dependency injection container that manages class dependencies and performs dependency injection.
+
+**Real-time Example:**
+```php
+// app/Services/PaymentService.php
+namespace App\Services;
+
+interface PaymentServiceInterface
+{
+    public function processPayment($amount, $cardToken);
+}
+
+class StripePaymentService implements PaymentServiceInterface
+{
+    public function processPayment($amount, $cardToken)
+    {
+        // Stripe payment logic
+        return ['status' => 'success', 'transaction_id' => 'stripe_123'];
+    }
+}
+
+class PayPalPaymentService implements PaymentServiceInterface
+{
+    public function processPayment($amount, $cardToken)
+    {
+        // PayPal payment logic
+        return ['status' => 'success', 'transaction_id' => 'paypal_456'];
+    }
+}
+
+// app/Providers/AppServiceProvider.php
+namespace App\Providers;
+
+use App\Services\PaymentServiceInterface;
+use App\Services\StripePaymentService;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function register()
+    {
+        // Bind interface to implementation
+        $this->app->bind(PaymentServiceInterface::class, function ($app) {
+            $paymentMethod = config('payment.default_method');
+            
+            switch ($paymentMethod) {
+                case 'stripe':
+                    return new StripePaymentService();
+                case 'paypal':
+                    return new PayPalPaymentService();
+                default:
+                    return new StripePaymentService();
+            }
+        });
+        
+        // Singleton binding
+        $this->app->singleton('payment.manager', function ($app) {
+            return new PaymentManager($app->make(PaymentServiceInterface::class));
+        });
+    }
+}
+
+// Usage in Controller
+class OrderController extends Controller
+{
+    protected $paymentService;
+    
+    public function __construct(PaymentServiceInterface $paymentService)
+    {
+        $this->paymentService = $paymentService;
+    }
+    
+    public function processOrder(Request $request)
+    {
+        $result = $this->paymentService->processPayment(
+            $request->amount,
+            $request->card_token
+        );
+        
+        return response()->json($result);
+    }
+}
+
+// Manual resolution
+$paymentService = app(PaymentServiceInterface::class);
+$paymentManager = app('payment.manager');
+
+// Contextual binding
+$this->app->when(OrderController::class)
+    ->needs(PaymentServiceInterface::class)
+    ->give(StripePaymentService::class);
+```
+
+### Q82. What are Service Providers and how to create custom ones?
+**Answer:** Service Providers are the central place to configure your application. They register services with the container and configure application components.
+
+**Real-time Example:**
+```php
+// Creating Service Provider
+php artisan make:provider CustomServiceProvider
+
+// app/Providers/CustomServiceProvider.php
+namespace App\Providers;
+
+use Illuminate\Support\ServiceProvider;
+use App\Services\EmailService;
+use App\Services\SmsService;
+use App\Services\NotificationService;
+
+class CustomServiceProvider extends ServiceProvider
+{
+    public function register()
+    {
+        // Register services
+        $this->app->singleton(EmailService::class, function ($app) {
+            return new EmailService(
+                $app->make('mailer'),
+                config('mail.from.address')
+            );
+        });
+        
+        $this->app->singleton(SmsService::class, function ($app) {
+            return new SmsService(
+                config('sms.api_key'),
+                config('sms.sender_id')
+            );
+        });
+        
+        // Register notification service
+        $this->app->singleton(NotificationService::class, function ($app) {
+            return new NotificationService(
+                $app->make(EmailService::class),
+                $app->make(SmsService::class)
+            );
+        });
+        
+        // Register custom configuration
+        $this->app->configure('custom');
+    }
+    
+    public function boot()
+    {
+        // Boot services
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'custom');
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'custom');
+        
+        // Publish assets
+        $this->publishes([
+            __DIR__.'/../config/custom.php' => config_path('custom.php'),
+        ], 'config');
+        
+        $this->publishes([
+            __DIR__.'/../resources/views' => resource_path('views/vendor/custom'),
+        ], 'views');
+        
+        // Register routes
+        $this->loadRoutesFrom(__DIR__.'/../routes/custom.php');
+        
+        // Register middleware
+        $this->app['router']->aliasMiddleware('custom', \App\Http\Middleware\CustomMiddleware::class);
+    }
+}
+
+// Custom Service Classes
+class EmailService
+{
+    protected $mailer;
+    protected $fromEmail;
+    
+    public function __construct($mailer, $fromEmail)
+    {
+        $this->mailer = $mailer;
+        $this->fromEmail = $fromEmail;
+    }
+    
+    public function send($to, $subject, $body)
+    {
+        return $this->mailer->to($to)->send(new CustomMail($subject, $body));
+    }
+}
+
+class NotificationService
+{
+    protected $emailService;
+    protected $smsService;
+    
+    public function __construct(EmailService $emailService, SmsService $smsService)
+    {
+        $this->emailService = $emailService;
+        $this->smsService = $smsService;
+    }
+    
+    public function sendNotification($user, $message, $channels = ['email'])
+    {
+        $notifications = [];
+        
+        if (in_array('email', $channels)) {
+            $notifications[] = $this->emailService->send($user->email, 'Notification', $message);
+        }
+        
+        if (in_array('sms', $channels)) {
+            $notifications[] = $this->smsService->send($user->phone, $message);
+        }
+        
+        return $notifications;
+    }
+}
+```
+
+---
+
+## Queues & Jobs
+
+### Q83. Laravel Queues & Jobs - WHY and HOW?
+**Answer:** Queues allow you to defer time-consuming tasks (like sending emails, processing images, or calling external APIs) to be processed later, making your application feel faster to users.
+
+**Why Use Queues?**
+- Don't make users wait for slow operations
+- Handle tasks in background
+- Retry failed operations automatically
+- Process tasks during off-peak hours
+
+**Real-time Example:**
+```php
+// PROBLEM: Without Queue - User waits 5+ seconds
+public function register(Request $request)
+{
+    $user = User::create($request->all());
+    
+    // These slow operations block the response
+    Mail::to($user)->send(new WelcomeEmail($user));        // 2 seconds
+    $this->resizeProfileImage($user->image);               // 2 seconds
+    $this->notifyAdmins($user);                            // 1 second
+    $this->updateAnalytics($user);                         // 1 second
+    
+    return redirect('/dashboard'); // User waits 6 seconds!
+}
+
+// SOLUTION: With Queue - User waits <1 second
+public function register(Request $request)
+{
+    $user = User::create($request->all());
+    
+    // Queue these operations - happens in background
+    SendWelcomeEmail::dispatch($user);
+    ResizeImage::dispatch($user->image);
+    NotifyAdmins::dispatch($user);
+    UpdateAnalytics::dispatch($user);
+    
+    return redirect('/dashboard'); // User waits <1 second!
+}
+
+// Creating the Job
+php artisan make:job SendWelcomeEmail
+
+// app/Jobs/SendWelcomeEmail.php
+namespace App\Jobs;
+
+use App\Models\User;
+use App\Mail\WelcomeEmail;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Mail;
+
+class SendWelcomeEmail implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    
+    public $user;
+    public $tries = 3; // Retry 3 times if failed
+    public $timeout = 120; // Timeout after 2 minutes
+    
+    public function __construct(User $user)
+    {
+        $this->user = $user;
+    }
+    
+    public function handle()
+    {
+        // This runs in background worker
+        Mail::to($this->user->email)
+            ->send(new WelcomeEmail($this->user));
+    }
+    
+    // If job fails after all retries
+    public function failed(\Throwable $exception)
+    {
+        // Send notification to admin
+        // Log the error
+        \Log::error('Failed to send welcome email', [
+            'user_id' => $this->user->id,
+            'error' => $exception->getMessage()
+        ]);
+    }
+}
+
+// Dispatching with delay
+SendWelcomeEmail::dispatch($user)->delay(now()->addMinutes(10));
+
+// Dispatching to specific queue
+SendWelcomeEmail::dispatch($user)->onQueue('emails');
+
+// Chain jobs - execute in sequence
+Bus::chain([
+    new ProcessOrder($order),
+    new ChargeCustomer($order),
+    new SendReceipt($order),
+])->dispatch();
+
+// Run queue worker
+php artisan queue:work
+php artisan queue:work --queue=emails,default --tries=3
+```
+
+### Q84. Task Scheduling
+```php
+// app/Console/Kernel.php
+protected function schedule(Schedule $schedule) {
+    $schedule->command('emails:send')->daily();
+    $schedule->call(function () {
+        DB::table('recent')->delete();
+    })->hourly();
+}
+```
+
+---
+
+## Testing
+
+### Q85. Laravel Testing - Unit, Feature, and Browser Tests
+**Answer:** Laravel provides comprehensive testing tools for unit, feature, and browser testing.
+
+**Real-time Example:**
+```php
+// Unit Test Example
+// tests/Unit/UserTest.php
+namespace Tests\Unit;
+
+use Tests\TestCase;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+class UserTest extends TestCase
+{
+    use RefreshDatabase;
+    
+    public function test_user_can_be_created()
+    {
+        $user = User::factory()->create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com'
+        ]);
+        
+        $this->assertInstanceOf(User::class, $user);
+        $this->assertEquals('John Doe', $user->name);
+        $this->assertEquals('john@example.com', $user->email);
+    }
+    
+    public function test_user_full_name_accessor()
+    {
+        $user = User::factory()->create([
+            'first_name' => 'John',
+            'last_name' => 'Doe'
+        ]);
+        
+        $this->assertEquals('John Doe', $user->full_name);
+    }
+    
+    public function test_user_can_have_posts()
+    {
+        $user = User::factory()->create();
+        $post = $user->posts()->create([
+            'title' => 'Test Post',
+            'content' => 'Test Content'
+        ]);
+        
+        $this->assertTrue($user->posts->contains($post));
+        $this->assertEquals(1, $user->posts->count());
+    }
+}
+
+// Feature Test Example
+// tests/Feature/UserRegistrationTest.php
+namespace Tests\Feature;
+
+use Tests\TestCase;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+
+class UserRegistrationTest extends TestCase
+{
+    use RefreshDatabase;
+    
+    public function test_user_can_register()
+    {
+        $userData = [
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123'
+        ];
+        
+        $response = $this->post('/register', $userData);
+        
+        $response->assertRedirect('/dashboard');
+        $this->assertDatabaseHas('users', [
+            'email' => 'john@example.com'
+        ]);
+    }
+    
+    public function test_user_registration_requires_valid_email()
+    {
+        $userData = [
+            'name' => 'John Doe',
+            'email' => 'invalid-email',
+            'password' => 'password123',
+            'password_confirmation' => 'password123'
+        ];
+        
+        $response = $this->post('/register', $userData);
+        
+        $response->assertSessionHasErrors('email');
+        $this->assertDatabaseMissing('users', [
+            'email' => 'invalid-email'
+        ]);
+    }
+    
+    public function test_authenticated_user_can_access_dashboard()
+    {
+        $user = User::factory()->create();
+        
+        $response = $this->actingAs($user)->get('/dashboard');
+        
+        $response->assertStatus(200);
+        $response->assertSee('Dashboard');
+    }
+}
+
+// Browser Test Example (Laravel Dusk)
+// tests/Browser/UserRegistrationTest.php
+namespace Tests\Browser;
+
+use Tests\DuskTestCase;
+use Laravel\Dusk\Browser;
+use App\Models\User;
+
+class UserRegistrationTest extends DuskTestCase
+{
+    public function test_user_can_register_via_browser()
+    {
+        $this->browse(function (Browser $browser) {
+            $browser->visit('/register')
+                    ->type('name', 'John Doe')
+                    ->type('email', 'john@example.com')
+                    ->type('password', 'password123')
+                    ->type('password_confirmation', 'password123')
+                    ->press('Register')
+                    ->assertPathIs('/dashboard')
+                    ->assertSee('Welcome, John Doe!');
+        });
+    }
+    
+    public function test_user_can_login_via_browser()
+    {
+        $user = User::factory()->create([
+            'email' => 'john@example.com',
+            'password' => bcrypt('password123')
+        ]);
+        
+        $this->browse(function (Browser $browser) use ($user) {
+            $browser->visit('/login')
+                    ->type('email', 'john@example.com')
+                    ->type('password', 'password123')
+                    ->press('Login')
+                    ->assertPathIs('/dashboard')
+                    ->assertSee('Dashboard');
+        });
+    }
+}
+
+// API Test Example
+// tests/Feature/ApiUserTest.php
+namespace Tests\Feature;
+
+use Tests\TestCase;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+class ApiUserTest extends TestCase
+{
+    use RefreshDatabase;
+    
+    public function test_can_get_users_via_api()
+    {
+        $users = User::factory()->count(3)->create();
+        
+        $response = $this->getJson('/api/users');
+        
+        $response->assertStatus(200)
+                ->assertJsonCount(3, 'data')
+                ->assertJsonStructure([
+                    'data' => [
+                        '*' => ['id', 'name', 'email', 'created_at']
+                    ]
+                ]);
+    }
+    
+    public function test_can_create_user_via_api()
+    {
+        $userData = [
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+            'password' => 'password123'
+        ];
+        
+        $response = $this->postJson('/api/users', $userData);
+        
+        $response->assertStatus(201)
+                ->assertJsonFragment(['name' => 'John Doe'])
+                ->assertJsonStructure(['data' => ['id', 'name', 'email']]);
+    }
+    
+    public function test_api_requires_authentication()
+    {
+        $response = $this->getJson('/api/protected-route');
+        
+        $response->assertStatus(401);
+    }
+}
+
+// Test Database Setup
+// tests/TestCase.php
+namespace Tests;
+
+use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+abstract class TestCase extends BaseTestCase
+{
+    use CreatesApplication, RefreshDatabase;
+    
+    protected function setUp(): void
+    {
+        parent::setUp();
+        
+        // Run migrations
+        $this->artisan('migrate');
+        
+        // Seed test data
+        $this->artisan('db:seed');
+    }
+}
+
+// Running Tests
+// php artisan test
+// php artisan test --filter=UserTest
+// php artisan test tests/Feature/UserRegistrationTest.php
+// php artisan dusk
+```
+
+---
+
+## Performance & Optimization
+
+### Q86. Laravel Performance Optimization Techniques
+**Answer:** Laravel provides various techniques to optimize application performance including caching, database optimization, and code improvements.
+
+**Real-time Example:**
+```php
+// Database Optimization
+class OptimizedPostController extends Controller
+{
+    public function index()
+    {
+        // BAD: N+1 Query Problem
+        // $posts = Post::all(); // 1 query
+        // foreach ($posts as $post) {
+        //     echo $post->author->name; // 1 query per post!
+        // }
+        
+        // GOOD: Eager Loading
+        $posts = Post::with(['author', 'category', 'tags'])
+            ->withCount('comments')
+            ->published()
+            ->latest()
+            ->paginate(15);
+        
+        return view('posts.index', compact('posts'));
+    }
+    
+    public function show(Post $post)
+    {
+        // Load relationships efficiently
+        $post->load(['author.profile', 'comments.user', 'tags']);
+        
+        return view('posts.show', compact('post'));
+    }
+}
+
+// Caching Strategies
+class CacheService
+{
+    public function getPopularPosts()
+    {
+        return Cache::remember('popular_posts', 3600, function () {
+            return Post::with('author')
+                ->published()
+                ->orderBy('views', 'desc')
+                ->limit(10)
+                ->get();
+        });
+    }
+    
+    public function getUserPosts($userId)
+    {
+        $cacheKey = "user_posts_{$userId}";
+        
+        return Cache::tags(['posts', "user_{$userId}"])
+            ->remember($cacheKey, 1800, function () use ($userId) {
+                return Post::where('user_id', $userId)
+                    ->with('category')
+                    ->latest()
+                    ->get();
+            });
+    }
+    
+    public function clearUserCache($userId)
+    {
+        Cache::tags(["user_{$userId}"])->flush();
+    }
+}
+
+// Query Optimization
+class OptimizedQueries
+{
+    public function getUsersWithPosts()
+    {
+        // Use select to limit columns
+        return User::select(['id', 'name', 'email'])
+            ->with(['posts' => function ($query) {
+                $query->select(['id', 'title', 'user_id', 'created_at'])
+                      ->published()
+                      ->latest();
+            }])
+            ->whereHas('posts')
+            ->get();
+    }
+    
+    public function getPostsWithStats()
+    {
+        // Use subqueries for counts
+        return Post::addSelect([
+            'comments_count' => Comment::selectRaw('count(*)')
+                ->whereColumn('post_id', 'posts.id'),
+            'likes_count' => Like::selectRaw('count(*)')
+                ->whereColumn('post_id', 'posts.id')
+        ])->get();
+    }
+    
+    public function getPostsByCategory($categoryId)
+    {
+        // Use database indexes
+        return Post::where('category_id', $categoryId)
+            ->where('published_at', '<=', now())
+            ->orderBy('published_at', 'desc')
+            ->limit(20)
+            ->get();
+    }
+}
+
+// Memory Optimization
+class MemoryOptimizedController extends Controller
+{
+    public function exportUsers()
+    {
+        // Process in chunks to avoid memory issues
+        $users = User::chunk(100, function ($users) {
+            foreach ($users as $user) {
+                // Process each user
+                $this->processUser($user);
+            }
+        });
+    }
+    
+    public function processLargeDataset()
+    {
+        // Use cursor for large datasets
+        User::where('created_at', '>', now()->subDays(30))
+            ->cursor()
+            ->each(function ($user) {
+                $this->processUser($user);
+            });
+    }
+}
+
+// Application Performance Monitoring
+class PerformanceMiddleware
+{
+    public function handle($request, Closure $next)
+    {
+        $startTime = microtime(true);
+        $startMemory = memory_get_usage();
+        
+        $response = $next($request);
+        
+        $endTime = microtime(true);
+        $endMemory = memory_get_usage();
+        
+        $duration = $endTime - $startTime;
+        $memoryUsed = $endMemory - $startMemory;
+        
+        // Log performance metrics
+        if ($duration > 1.0) { // Log slow requests
+            \Log::warning('Slow request detected', [
+                'url' => $request->fullUrl(),
+                'duration' => $duration,
+                'memory' => $memoryUsed,
+                'user_id' => auth()->id()
+            ]);
+        }
+        
+        return $response;
+    }
+}
+
+// Database Indexing
+// Migration for indexes
+public function up()
+{
+    Schema::table('posts', function (Blueprint $table) {
+        $table->index(['published_at', 'category_id']);
+        $table->index(['user_id', 'created_at']);
+        $table->fullText(['title', 'content']);
+    });
+}
+
+// Redis Caching
+class RedisCacheService
+{
+    public function cacheUserData($userId)
+    {
+        $user = User::with(['profile', 'roles'])->find($userId);
+        
+        Redis::setex("user:{$userId}", 3600, json_encode($user));
+        
+        return $user;
+    }
+    
+    public function getCachedUser($userId)
+    {
+        $cached = Redis::get("user:{$userId}");
+        
+        if ($cached) {
+            return json_decode($cached, true);
+        }
+        
+        return $this->cacheUserData($userId);
+    }
+}
+
+// Queue Optimization
+class OptimizedJob implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    
+    public $timeout = 300;
+    public $tries = 3;
+    public $maxExceptions = 3;
+    
+    public function handle()
+    {
+        // Process in chunks
+        $this->processInChunks();
+    }
+    
+    private function processInChunks()
+    {
+        $chunkSize = 100;
+        
+        User::chunk($chunkSize, function ($users) {
+            foreach ($users as $user) {
+                $this->processUser($user);
+            }
+        });
+    }
+}
+```
+
+---
+
 ## Advanced Laravel Concepts
 
 ### Q81. What is Laravel's Service Container and how does it work?

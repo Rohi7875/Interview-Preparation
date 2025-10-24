@@ -1489,4 +1489,1211 @@ console.log(formatters.capitalize('hello world')); // Hello World
 console.log(formatters.slug('Hello World!')); // hello-world
 ```
 
-**Total String Functions: 100+ with comprehensive syntax definitions, real-world examples, and advanced use cases for both PHP and JavaScript!**
+---
+
+## String Search & Replace
+
+### Q9. Advanced String Search and Replace Operations
+**Answer:** Comprehensive string search and replace operations for both PHP and JavaScript.
+
+**Real-time Example:**
+```php
+// Advanced String Search and Replace System
+class AdvancedStringSearch {
+    
+    // Multi-pattern search and replace
+    public function multiPatternReplace($text, $patterns, $replacements) {
+        if (count($patterns) !== count($replacements)) {
+            throw new Exception('Patterns and replacements count must match');
+        }
+        
+        $result = $text;
+        for ($i = 0; $i < count($patterns); $i++) {
+            $result = str_replace($patterns[$i], $replacements[$i], $result);
+        }
+        
+        return $result;
+    }
+    
+    // Case-insensitive multi-replace
+    public function caseInsensitiveReplace($text, $search, $replace) {
+        return str_ireplace($search, $replace, $text);
+    }
+    
+    // Replace with callback function
+    public function replaceWithCallback($text, $pattern, $callback) {
+        return preg_replace_callback($pattern, $callback, $text);
+    }
+    
+    // Real-world: Content moderation
+    public function moderateContent($content) {
+        $badWords = ['spam', 'scam', 'fake', 'fraud'];
+        $replacements = ['***', '***', '***', '***'];
+        
+        // Case-insensitive replacement
+        $moderated = str_ireplace($badWords, $replacements, $content);
+        
+        // Replace URLs with [LINK]
+        $moderated = preg_replace('/https?:\/\/[^\s]+/', '[LINK]', $moderated);
+        
+        // Replace email addresses with [EMAIL]
+        $moderated = preg_replace('/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/', '[EMAIL]', $moderated);
+        
+        return $moderated;
+    }
+    
+    // Real-world: Template variable replacement
+    public function processTemplate($template, $variables) {
+        $processed = $template;
+        
+        foreach ($variables as $key => $value) {
+            $placeholder = '{{' . $key . '}}';
+            $processed = str_replace($placeholder, $value, $processed);
+        }
+        
+        // Handle conditional blocks
+        $processed = preg_replace_callback('/\{if\s+(\w+)\}(.*?)\{\/if\}/s', 
+            function($matches) use ($variables) {
+                $condition = $matches[1];
+                $content = $matches[2];
+                
+                if (isset($variables[$condition]) && $variables[$condition]) {
+                    return $content;
+                }
+                
+                return '';
+            }, $processed);
+        
+        return $processed;
+    }
+    
+    // Real-world: Text normalization
+    public function normalizeText($text) {
+        // Remove extra whitespace
+        $text = preg_replace('/\s+/', ' ', $text);
+        
+        // Remove special characters but keep basic punctuation
+        $text = preg_replace('/[^\w\s.,!?;:()-]/', '', $text);
+        
+        // Normalize quotes
+        $text = str_replace(['"', '"', ''', ''', '`'], ['"', '"', "'", "'", "'"], $text);
+        
+        // Normalize dashes
+        $text = str_replace(['–', '—'], '-', $text);
+        
+        return trim($text);
+    }
+    
+    // Real-world: Smart text replacement
+    public function smartReplace($text, $search, $replace, $options = []) {
+        $defaults = [
+            'case_sensitive' => false,
+            'whole_word' => true,
+            'preserve_case' => true
+        ];
+        
+        $options = array_merge($defaults, $options);
+        
+        if ($options['whole_word']) {
+            $pattern = '/\b' . preg_quote($search, '/') . '\b/';
+        } else {
+            $pattern = '/' . preg_quote($search, '/') . '/';
+        }
+        
+        if (!$options['case_sensitive']) {
+            $pattern .= 'i';
+        }
+        
+        if ($options['preserve_case']) {
+            return preg_replace_callback($pattern, function($matches) use ($replace) {
+                $original = $matches[0];
+                $replacement = $replace;
+                
+                // Preserve case
+                if (ctype_upper($original[0])) {
+                    $replacement = ucfirst($replacement);
+                }
+                
+                if (ctype_upper($original)) {
+                    $replacement = strtoupper($replacement);
+                }
+                
+                return $replacement;
+            }, $text);
+        }
+        
+        return preg_replace($pattern, $replace, $text);
+    }
+}
+
+// JavaScript equivalent
+class JavaScriptStringSearch {
+    
+    // Advanced search and replace
+    advancedReplace() {
+        const text = "Hello World! This is a test.";
+        
+        // Multiple replacements
+        const replacements = [
+            { search: 'Hello', replace: 'Hi' },
+            { search: 'World', replace: 'Universe' },
+            { search: 'test', replace: 'example' }
+        ];
+        
+        let result = text;
+        replacements.forEach(({ search, replace }) => {
+            result = result.replace(new RegExp(search, 'gi'), replace);
+        });
+        
+        return result;
+    }
+    
+    // Replace with function
+    replaceWithFunction() {
+        const text = "The price is $100 and tax is $15";
+        
+        return text.replace(/\$(\d+)/g, (match, amount) => {
+            const price = parseInt(amount);
+            return `$${price.toFixed(2)}`;
+        });
+    }
+    
+    // Template processing
+    processTemplate(template, variables) {
+        let processed = template;
+        
+        // Replace variables
+        Object.keys(variables).forEach(key => {
+            const placeholder = `{{${key}}}`;
+            processed = processed.replace(new RegExp(placeholder, 'g'), variables[key]);
+        });
+        
+        // Handle conditional blocks
+        processed = processed.replace(/\{if\s+(\w+)\}(.*?)\{\/if\}/gs, (match, condition, content) => {
+            return variables[condition] ? content : '';
+        });
+        
+        return processed;
+    }
+    
+    // Smart text replacement
+    smartReplace(text, search, replace, options = {}) {
+        const {
+            caseSensitive = false,
+            wholeWord = true,
+            preserveCase = true
+        } = options;
+        
+        let pattern = search;
+        if (wholeWord) {
+            pattern = `\\b${search}\\b`;
+        }
+        
+        const flags = caseSensitive ? 'g' : 'gi';
+        const regex = new RegExp(pattern, flags);
+        
+        if (preserveCase) {
+            return text.replace(regex, (match) => {
+                let replacement = replace;
+                
+                if (match[0] === match[0].toUpperCase()) {
+                    replacement = replacement.charAt(0).toUpperCase() + replacement.slice(1);
+                }
+                
+                if (match === match.toUpperCase()) {
+                    replacement = replacement.toUpperCase();
+                }
+                
+                return replacement;
+            });
+        }
+        
+        return text.replace(regex, replace);
+    }
+}
+
+// Usage
+$search = new AdvancedStringSearch();
+
+// Content moderation
+$content = "This is spam content with email@example.com and https://spam.com";
+echo $search->moderateContent($content);
+// Output: This is *** content with [EMAIL] and [LINK]
+
+// Template processing
+$template = "Hello {{name}}, {if premium}you have premium access{/if}";
+$variables = ['name' => 'John', 'premium' => true];
+echo $search->processTemplate($template, $variables);
+// Output: Hello John, you have premium access
+```
+
+---
+
+## Real-World Use Cases
+
+### Q10. Comprehensive Real-World Applications
+**Answer:** Practical applications of string manipulation in real-world scenarios.
+
+**Real-time Example:**
+```php
+// E-commerce Product Management System
+class ProductManager {
+    
+    // Generate product SKU
+    public function generateSKU($productName, $category, $id) {
+        // Clean product name
+        $cleanName = preg_replace('/[^a-zA-Z0-9]/', '', $productName);
+        $cleanName = strtoupper(substr($cleanName, 0, 3));
+        
+        // Clean category
+        $cleanCategory = strtoupper(substr($category, 0, 2));
+        
+        // Format ID with leading zeros
+        $formattedId = str_pad($id, 4, '0', STR_PAD_LEFT);
+        
+        return $cleanCategory . '-' . $cleanName . '-' . $formattedId;
+    }
+    
+    // Generate product URL slug
+    public function generateSlug($productName) {
+        $slug = strtolower($productName);
+        $slug = preg_replace('/[^a-z0-9\s-]/', '', $slug);
+        $slug = preg_replace('/\s+/', '-', $slug);
+        $slug = trim($slug, '-');
+        
+        return $slug;
+    }
+    
+    // Format product description
+    public function formatDescription($description, $maxLength = 500) {
+        // Remove HTML tags
+        $description = strip_tags($description);
+        
+        // Normalize whitespace
+        $description = preg_replace('/\s+/', ' ', $description);
+        $description = trim($description);
+        
+        // Truncate if too long
+        if (strlen($description) > $maxLength) {
+            $description = substr($description, 0, $maxLength);
+            $lastSpace = strrpos($description, ' ');
+            if ($lastSpace !== false) {
+                $description = substr($description, 0, $lastSpace);
+            }
+            $description .= '...';
+        }
+        
+        return $description;
+    }
+    
+    // Parse product dimensions
+    public function parseDimensions($dimensions) {
+        $pattern = '/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/i';
+        
+        if (preg_match($pattern, $dimensions, $matches)) {
+            return [
+                'length' => floatval($matches[1]),
+                'width' => floatval($matches[2]),
+                'height' => floatval($matches[3])
+            ];
+        }
+        
+        return null;
+    }
+}
+
+// User Authentication System
+class AuthManager {
+    
+    // Validate and sanitize username
+    public function validateUsername($username) {
+        $username = trim($username);
+        
+        if (strlen($username) < 3) {
+            return ['valid' => false, 'error' => 'Username too short'];
+        }
+        
+        if (strlen($username) > 20) {
+            return ['valid' => false, 'error' => 'Username too long'];
+        }
+        
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
+            return ['valid' => false, 'error' => 'Username contains invalid characters'];
+        }
+        
+        return ['valid' => true, 'username' => $username];
+    }
+    
+    // Generate secure password
+    public function generatePassword($length = 12) {
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+        $password = '';
+        
+        for ($i = 0; $i < $length; $i++) {
+            $password .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+        
+        return $password;
+    }
+    
+    // Mask sensitive data in logs
+    public function maskSensitiveData($logEntry) {
+        // Mask passwords
+        $logEntry = preg_replace('/password["\']?\s*[:=]\s*["\']?[^"\'\s]+/i', 'password="***"', $logEntry);
+        
+        // Mask credit cards
+        $logEntry = preg_replace('/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/', '****-****-****-****', $logEntry);
+        
+        // Mask SSN
+        $logEntry = preg_replace('/\b\d{3}-\d{2}-\d{4}\b/', '***-**-****', $logEntry);
+        
+        return $logEntry;
+    }
+}
+
+// Content Management System
+class ContentManager {
+    
+    // Extract metadata from content
+    public function extractMetadata($content) {
+        $metadata = [
+            'word_count' => str_word_count($content),
+            'character_count' => strlen($content),
+            'reading_time' => ceil(str_word_count($content) / 200), // 200 words per minute
+            'tags' => $this->extractTags($content),
+            'mentions' => $this->extractMentions($content),
+            'hashtags' => $this->extractHashtags($content)
+        ];
+        
+        return $metadata;
+    }
+    
+    private function extractTags($content) {
+        preg_match_all('/#(\w+)/', $content, $matches);
+        return array_unique($matches[1]);
+    }
+    
+    private function extractMentions($content) {
+        preg_match_all('/@(\w+)/', $content, $matches);
+        return array_unique($matches[1]);
+    }
+    
+    private function extractHashtags($content) {
+        preg_match_all('/#(\w+)/', $content, $matches);
+        return array_unique($matches[1]);
+    }
+    
+    // Generate table of contents
+    public function generateTOC($content) {
+        preg_match_all('/^(#{1,6})\s+(.+)$/m', $content, $matches, PREG_SET_ORDER);
+        
+        $toc = [];
+        foreach ($matches as $match) {
+            $level = strlen($match[1]);
+            $title = $match[2];
+            $slug = $this->generateSlug($title);
+            
+            $toc[] = [
+                'level' => $level,
+                'title' => $title,
+                'slug' => $slug
+            ];
+        }
+        
+        return $toc;
+    }
+    
+    // Auto-generate excerpt
+    public function generateExcerpt($content, $length = 150) {
+        // Remove HTML tags
+        $excerpt = strip_tags($content);
+        
+        // Remove extra whitespace
+        $excerpt = preg_replace('/\s+/', ' ', $excerpt);
+        $excerpt = trim($excerpt);
+        
+        // Truncate to specified length
+        if (strlen($excerpt) > $length) {
+            $excerpt = substr($excerpt, 0, $length);
+            $lastSpace = strrpos($excerpt, ' ');
+            if ($lastSpace !== false) {
+                $excerpt = substr($excerpt, 0, $lastSpace);
+            }
+            $excerpt .= '...';
+        }
+        
+        return $excerpt;
+    }
+}
+
+// API Response Formatter
+class APIFormatter {
+    
+    // Format API response
+    public function formatResponse($data, $format = 'json') {
+        switch ($format) {
+            case 'json':
+                return json_encode($data, JSON_PRETTY_PRINT);
+            case 'xml':
+                return $this->arrayToXml($data);
+            case 'csv':
+                return $this->arrayToCsv($data);
+            default:
+                return $data;
+        }
+    }
+    
+    private function arrayToXml($data, $rootElement = 'root') {
+        $xml = new SimpleXMLElement("<$rootElement></$rootElement>");
+        $this->arrayToXmlRecursive($data, $xml);
+        return $xml->asXML();
+    }
+    
+    private function arrayToXmlRecursive($data, $xml) {
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $child = $xml->addChild($key);
+                $this->arrayToXmlRecursive($value, $child);
+            } else {
+                $xml->addChild($key, htmlspecialchars($value));
+            }
+        }
+    }
+    
+    private function arrayToCsv($data) {
+        if (empty($data)) {
+            return '';
+        }
+        
+        $csv = '';
+        $headers = array_keys($data[0]);
+        $csv .= implode(',', $headers) . "\n";
+        
+        foreach ($data as $row) {
+            $csv .= implode(',', array_map(function($field) {
+                return '"' . str_replace('"', '""', $field) . '"';
+            }, $row)) . "\n";
+        }
+        
+        return $csv;
+    }
+}
+
+// Usage examples
+$productManager = new ProductManager();
+echo $productManager->generateSKU('iPhone 15 Pro', 'Electronics', 123);
+// Output: EL-IPH-0123
+
+$authManager = new AuthManager();
+$result = $authManager->validateUsername('john_doe123');
+print_r($result);
+
+$contentManager = new ContentManager();
+$metadata = $contentManager->extractMetadata('Check out #webdev and @username for more info!');
+print_r($metadata);
+```
+
+---
+
+## Performance Comparison
+
+### Q11. String Function Performance Analysis
+**Answer:** Performance comparison between different string manipulation approaches.
+
+**Real-time Example:**
+```php
+// Performance Testing System
+class StringPerformanceTest {
+    
+    private $testData = [];
+    private $results = [];
+    
+    public function __construct() {
+        $this->testData = [
+            'short' => 'Hello World',
+            'medium' => str_repeat('This is a medium length string for testing. ', 10),
+            'long' => str_repeat('This is a very long string that will be used for performance testing. ', 100),
+            'very_long' => str_repeat('This is an extremely long string for comprehensive performance testing. ', 1000)
+        ];
+    }
+    
+    // Test string concatenation methods
+    public function testConcatenation() {
+        $results = [];
+        
+        foreach ($this->testData as $size => $data) {
+            $iterations = $this->getIterations($size);
+            
+            // Method 1: Direct concatenation
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = $data . ' ' . $data;
+            }
+            $results[$size]['concatenation'] = microtime(true) - $start;
+            
+            // Method 2: sprintf
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = sprintf('%s %s', $data, $data);
+            }
+            $results[$size]['sprintf'] = microtime(true) - $start;
+            
+            // Method 3: implode
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = implode(' ', [$data, $data]);
+            }
+            $results[$size]['implode'] = microtime(true) - $start;
+        }
+        
+        return $results;
+    }
+    
+    // Test string search methods
+    public function testSearchMethods() {
+        $results = [];
+        $searchTerm = 'test';
+        
+        foreach ($this->testData as $size => $data) {
+            $iterations = $this->getIterations($size);
+            
+            // Method 1: strpos
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = strpos($data, $searchTerm);
+            }
+            $results[$size]['strpos'] = microtime(true) - $start;
+            
+            // Method 2: strstr
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = strstr($data, $searchTerm);
+            }
+            $results[$size]['strstr'] = microtime(true) - $start;
+            
+            // Method 3: preg_match
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = preg_match('/' . preg_quote($searchTerm, '/') . '/', $data);
+            }
+            $results[$size]['preg_match'] = microtime(true) - $start;
+        }
+        
+        return $results;
+    }
+    
+    // Test string replacement methods
+    public function testReplacementMethods() {
+        $results = [];
+        $search = 'test';
+        $replace = 'example';
+        
+        foreach ($this->testData as $size => $data) {
+            $iterations = $this->getIterations($size);
+            
+            // Method 1: str_replace
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = str_replace($search, $replace, $data);
+            }
+            $results[$size]['str_replace'] = microtime(true) - $start;
+            
+            // Method 2: str_ireplace
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = str_ireplace($search, $replace, $data);
+            }
+            $results[$size]['str_ireplace'] = microtime(true) - $start;
+            
+            // Method 3: preg_replace
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = preg_replace('/' . preg_quote($search, '/') . '/', $replace, $data);
+            }
+            $results[$size]['preg_replace'] = microtime(true) - $start;
+        }
+        
+        return $results;
+    }
+    
+    // Test case conversion methods
+    public function testCaseConversion() {
+        $results = [];
+        
+        foreach ($this->testData as $size => $data) {
+            $iterations = $this->getIterations($size);
+            
+            // Method 1: strtolower
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = strtolower($data);
+            }
+            $results[$size]['strtolower'] = microtime(true) - $start;
+            
+            // Method 2: mb_strtolower
+            $start = microtime(true);
+            for ($i = 0; $i < $iterations; $i++) {
+                $result = mb_strtolower($data);
+            }
+            $results[$size]['mb_strtolower'] = microtime(true) - $start;
+        }
+        
+        return $results;
+    }
+    
+    // Memory usage comparison
+    public function testMemoryUsage() {
+        $results = [];
+        
+        foreach ($this->testData as $size => $data) {
+            $memoryBefore = memory_get_usage();
+            
+            // Test various operations
+            $result1 = str_replace('test', 'example', $data);
+            $result2 = preg_replace('/test/', 'example', $data);
+            $result3 = substr($data, 0, 100);
+            
+            $memoryAfter = memory_get_usage();
+            $results[$size]['memory_usage'] = $memoryAfter - $memoryBefore;
+        }
+        
+        return $results;
+    }
+    
+    // Generate performance report
+    public function generateReport() {
+        $report = [
+            'concatenation' => $this->testConcatenation(),
+            'search' => $this->testSearchMethods(),
+            'replacement' => $this->testReplacementMethods(),
+            'case_conversion' => $this->testCaseConversion(),
+            'memory' => $this->testMemoryUsage()
+        ];
+        
+        return $report;
+    }
+    
+    private function getIterations($size) {
+        $iterations = [
+            'short' => 10000,
+            'medium' => 5000,
+            'long' => 1000,
+            'very_long' => 100
+        ];
+        
+        return $iterations[$size];
+    }
+}
+
+// JavaScript Performance Testing
+class JavaScriptPerformanceTest {
+    
+    constructor() {
+        this.testData = {
+            short: 'Hello World',
+            medium: 'This is a medium length string for testing. '.repeat(10),
+            long: 'This is a very long string that will be used for performance testing. '.repeat(100),
+            veryLong: 'This is an extremely long string for comprehensive performance testing. '.repeat(1000)
+        };
+    }
+    
+    // Test string concatenation
+    testConcatenation() {
+        const results = {};
+        
+        Object.keys(this.testData).forEach(size => {
+            const data = this.testData[size];
+            const iterations = this.getIterations(size);
+            
+            // Method 1: Template literals
+            let start = performance.now();
+            for (let i = 0; i < iterations; i++) {
+                const result = `${data} ${data}`;
+            }
+            results[size] = results[size] || {};
+            results[size].templateLiterals = performance.now() - start;
+            
+            // Method 2: String concatenation
+            start = performance.now();
+            for (let i = 0; i < iterations; i++) {
+                const result = data + ' ' + data;
+            }
+            results[size].concatenation = performance.now() - start;
+            
+            // Method 3: Array join
+            start = performance.now();
+            for (let i = 0; i < iterations; i++) {
+                const result = [data, data].join(' ');
+            }
+            results[size].arrayJoin = performance.now() - start;
+        });
+        
+        return results;
+    }
+    
+    // Test string search
+    testSearch() {
+        const results = {};
+        const searchTerm = 'test';
+        
+        Object.keys(this.testData).forEach(size => {
+            const data = this.testData[size];
+            const iterations = this.getIterations(size);
+            
+            // Method 1: includes
+            let start = performance.now();
+            for (let i = 0; i < iterations; i++) {
+                const result = data.includes(searchTerm);
+            }
+            results[size] = results[size] || {};
+            results[size].includes = performance.now() - start;
+            
+            // Method 2: indexOf
+            start = performance.now();
+            for (let i = 0; i < iterations; i++) {
+                const result = data.indexOf(searchTerm) !== -1;
+            }
+            results[size].indexOf = performance.now() - start;
+            
+            // Method 3: RegExp test
+            const regex = new RegExp(searchTerm);
+            start = performance.now();
+            for (let i = 0; i < iterations; i++) {
+                const result = regex.test(data);
+            }
+            results[size].regexTest = performance.now() - start;
+        });
+        
+        return results;
+    }
+    
+    getIterations(size) {
+        const iterations = {
+            short: 10000,
+            medium: 5000,
+            long: 1000,
+            veryLong: 100
+        };
+        
+        return iterations[size];
+    }
+}
+
+// Usage
+$performanceTest = new StringPerformanceTest();
+$report = $performanceTest->generateReport();
+
+echo "Performance Report:\n";
+echo "==================\n\n";
+
+foreach ($report as $test => $results) {
+    echo "$test Results:\n";
+    foreach ($results as $size => $methods) {
+        echo "  $size: ";
+        foreach ($methods as $method => $time) {
+            echo "$method: " . number_format($time, 6) . "s ";
+        }
+        echo "\n";
+    }
+    echo "\n";
+}
+```
+
+---
+
+## Common Interview Questions
+
+### Q12. String Manipulation Interview Questions
+**Answer:** Common interview questions with detailed answers and code examples.
+
+**Real-time Example:**
+```php
+// Interview Questions and Answers
+
+// Q1: How do you reverse a string in PHP?
+class StringInterview {
+    
+    // Method 1: Using strrev()
+    public function reverseString1($string) {
+        return strrev($string);
+    }
+    
+    // Method 2: Using array functions
+    public function reverseString2($string) {
+        return implode('', array_reverse(str_split($string)));
+    }
+    
+    // Method 3: Manual loop
+    public function reverseString3($string) {
+        $reversed = '';
+        $length = strlen($string);
+        
+        for ($i = $length - 1; $i >= 0; $i--) {
+            $reversed .= $string[$i];
+        }
+        
+        return $reversed;
+    }
+    
+    // Method 4: Recursive
+    public function reverseString4($string) {
+        if (strlen($string) <= 1) {
+            return $string;
+        }
+        
+        return $this->reverseString4(substr($string, 1)) . $string[0];
+    }
+}
+
+// Q2: How do you check if two strings are anagrams?
+class AnagramChecker {
+    
+    public function areAnagrams($string1, $string2) {
+        // Remove spaces and convert to lowercase
+        $string1 = str_replace(' ', '', strtolower($string1));
+        $string2 = str_replace(' ', '', strtolower($string2));
+        
+        // Check if lengths are equal
+        if (strlen($string1) !== strlen($string2)) {
+            return false;
+        }
+        
+        // Sort characters and compare
+        $chars1 = str_split($string1);
+        $chars2 = str_split($string2);
+        
+        sort($chars1);
+        sort($chars2);
+        
+        return $chars1 === $chars2;
+    }
+    
+    // Alternative method using character frequency
+    public function areAnagramsFrequency($string1, $string2) {
+        $string1 = str_replace(' ', '', strtolower($string1));
+        $string2 = str_replace(' ', '', strtolower($string2));
+        
+        if (strlen($string1) !== strlen($string2)) {
+            return false;
+        }
+        
+        $freq1 = array_count_values(str_split($string1));
+        $freq2 = array_count_values(str_split($string2));
+        
+        return $freq1 === $freq2;
+    }
+}
+
+// Q3: How do you find the first non-repeating character?
+class NonRepeatingCharacter {
+    
+    public function findFirstNonRepeating($string) {
+        $charCount = [];
+        
+        // Count character frequencies
+        for ($i = 0; $i < strlen($string); $i++) {
+            $char = $string[$i];
+            $charCount[$char] = ($charCount[$char] ?? 0) + 1;
+        }
+        
+        // Find first character with count 1
+        for ($i = 0; $i < strlen($string); $i++) {
+            if ($charCount[$string[$i]] === 1) {
+                return $string[$i];
+            }
+        }
+        
+        return null;
+    }
+}
+
+// Q4: How do you implement a simple string compression?
+class StringCompression {
+    
+    public function compress($string) {
+        if (empty($string)) {
+            return $string;
+        }
+        
+        $compressed = '';
+        $currentChar = $string[0];
+        $count = 1;
+        
+        for ($i = 1; $i < strlen($string); $i++) {
+            if ($string[$i] === $currentChar) {
+                $count++;
+            } else {
+                $compressed .= $currentChar . $count;
+                $currentChar = $string[$i];
+                $count = 1;
+            }
+        }
+        
+        $compressed .= $currentChar . $count;
+        
+        // Return original if compressed is longer
+        return strlen($compressed) < strlen($string) ? $compressed : $string;
+    }
+    
+    public function decompress($compressed) {
+        $decompressed = '';
+        $i = 0;
+        
+        while ($i < strlen($compressed)) {
+            $char = $compressed[$i];
+            $i++;
+            
+            $count = '';
+            while ($i < strlen($compressed) && is_numeric($compressed[$i])) {
+                $count .= $compressed[$i];
+                $i++;
+            }
+            
+            $decompressed .= str_repeat($char, intval($count));
+        }
+        
+        return $decompressed;
+    }
+}
+
+// Q5: How do you implement a string palindrome checker?
+class PalindromeChecker {
+    
+    public function isPalindrome($string) {
+        // Remove non-alphanumeric characters and convert to lowercase
+        $cleanString = preg_replace('/[^a-zA-Z0-9]/', '', strtolower($string));
+        
+        $left = 0;
+        $right = strlen($cleanString) - 1;
+        
+        while ($left < $right) {
+            if ($cleanString[$left] !== $cleanString[$right]) {
+                return false;
+            }
+            $left++;
+            $right--;
+        }
+        
+        return true;
+    }
+    
+    // Recursive approach
+    public function isPalindromeRecursive($string, $left = 0, $right = null) {
+        if ($right === null) {
+            $string = preg_replace('/[^a-zA-Z0-9]/', '', strtolower($string));
+            $right = strlen($string) - 1;
+        }
+        
+        if ($left >= $right) {
+            return true;
+        }
+        
+        if ($string[$left] !== $string[$right]) {
+            return false;
+        }
+        
+        return $this->isPalindromeRecursive($string, $left + 1, $right - 1);
+    }
+}
+
+// Q6: How do you find the longest common subsequence?
+class LongestCommonSubsequence {
+    
+    public function findLCS($string1, $string2) {
+        $m = strlen($string1);
+        $n = strlen($string2);
+        
+        // Create DP table
+        $dp = array_fill(0, $m + 1, array_fill(0, $n + 1, 0));
+        
+        // Fill DP table
+        for ($i = 1; $i <= $m; $i++) {
+            for ($j = 1; $j <= $n; $j++) {
+                if ($string1[$i - 1] === $string2[$j - 1]) {
+                    $dp[$i][$j] = $dp[$i - 1][$j - 1] + 1;
+                } else {
+                    $dp[$i][$j] = max($dp[$i - 1][$j], $dp[$i][$j - 1]);
+                }
+            }
+        }
+        
+        // Reconstruct LCS
+        $lcs = '';
+        $i = $m;
+        $j = $n;
+        
+        while ($i > 0 && $j > 0) {
+            if ($string1[$i - 1] === $string2[$j - 1]) {
+                $lcs = $string1[$i - 1] . $lcs;
+                $i--;
+                $j--;
+            } elseif ($dp[$i - 1][$j] > $dp[$i][$j - 1]) {
+                $i--;
+            } else {
+                $j--;
+            }
+        }
+        
+        return $lcs;
+    }
+}
+
+// Q7: How do you implement a string tokenizer?
+class StringTokenizer {
+    
+    private $delimiters;
+    private $string;
+    private $position;
+    
+    public function __construct($string, $delimiters = ' ') {
+        $this->string = $string;
+        $this->delimiters = $delimiters;
+        $this->position = 0;
+    }
+    
+    public function hasMoreTokens() {
+        return $this->position < strlen($this->string);
+    }
+    
+    public function nextToken() {
+        if (!$this->hasMoreTokens()) {
+            return null;
+        }
+        
+        $start = $this->position;
+        
+        // Skip delimiters
+        while ($this->position < strlen($this->string) && 
+               strpos($this->delimiters, $this->string[$this->position]) !== false) {
+            $this->position++;
+        }
+        
+        $start = $this->position;
+        
+        // Find next delimiter
+        while ($this->position < strlen($this->string) && 
+               strpos($this->delimiters, $this->string[$this->position]) === false) {
+            $this->position++;
+        }
+        
+        return substr($this->string, $start, $this->position - $start);
+    }
+    
+    public function getAllTokens() {
+        $tokens = [];
+        while ($this->hasMoreTokens()) {
+            $token = $this->nextToken();
+            if ($token !== null && $token !== '') {
+                $tokens[] = $token;
+            }
+        }
+        return $tokens;
+    }
+}
+
+// Q8: How do you implement string matching algorithms?
+class StringMatching {
+    
+    // Naive string matching
+    public function naiveMatch($text, $pattern) {
+        $matches = [];
+        $textLen = strlen($text);
+        $patternLen = strlen($pattern);
+        
+        for ($i = 0; $i <= $textLen - $patternLen; $i++) {
+            $j = 0;
+            while ($j < $patternLen && $text[$i + $j] === $pattern[$j]) {
+                $j++;
+            }
+            
+            if ($j === $patternLen) {
+                $matches[] = $i;
+            }
+        }
+        
+        return $matches;
+    }
+    
+    // KMP (Knuth-Morris-Pratt) algorithm
+    public function kmpMatch($text, $pattern) {
+        $matches = [];
+        $textLen = strlen($text);
+        $patternLen = strlen($pattern);
+        
+        $lps = $this->computeLPS($pattern);
+        
+        $i = 0; // index for text
+        $j = 0; // index for pattern
+        
+        while ($i < $textLen) {
+            if ($text[$i] === $pattern[$j]) {
+                $i++;
+                $j++;
+            }
+            
+            if ($j === $patternLen) {
+                $matches[] = $i - $j;
+                $j = $lps[$j - 1];
+            } elseif ($i < $textLen && $text[$i] !== $pattern[$j]) {
+                if ($j !== 0) {
+                    $j = $lps[$j - 1];
+                } else {
+                    $i++;
+                }
+            }
+        }
+        
+        return $matches;
+    }
+    
+    private function computeLPS($pattern) {
+        $len = 0;
+        $lps = [0];
+        $i = 1;
+        $patternLen = strlen($pattern);
+        
+        while ($i < $patternLen) {
+            if ($pattern[$i] === $pattern[$len]) {
+                $len++;
+                $lps[$i] = $len;
+                $i++;
+            } else {
+                if ($len !== 0) {
+                    $len = $lps[$len - 1];
+                } else {
+                    $lps[$i] = 0;
+                    $i++;
+                }
+            }
+        }
+        
+        return $lps;
+    }
+}
+
+// Usage examples
+$interview = new StringInterview();
+echo $interview->reverseString1('Hello World'); // dlroW olleH
+
+$anagram = new AnagramChecker();
+var_dump($anagram->areAnagrams('listen', 'silent')); // true
+
+$compression = new StringCompression();
+echo $compression->compress('aaabbbcc'); // a3b3c2
+
+$palindrome = new PalindromeChecker();
+var_dump($palindrome->isPalindrome('A man a plan a canal Panama')); // true
+
+$lcs = new LongestCommonSubsequence();
+echo $lcs->findLCS('ABCDGH', 'AEDFHR'); // ADH
+
+$tokenizer = new StringTokenizer('Hello, World! How are you?', ' ,!?');
+$tokens = $tokenizer->getAllTokens();
+print_r($tokens); // ['Hello', 'World', 'How', 'are', 'you']
+
+$matching = new StringMatching();
+$matches = $matching->naiveMatch('ABABDABACDABABCABAB', 'ABABCABAB');
+print_r($matches); // [10]
+```
+
+**Total String Functions: 150+ with comprehensive syntax definitions, real-world examples, performance comparisons, and interview questions for both PHP and JavaScript!**
