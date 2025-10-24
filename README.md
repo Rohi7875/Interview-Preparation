@@ -495,6 +495,7 @@ This guide is created for educational purposes. Feel free to use it for intervie
 
 ### 🎯 Interview Preparation Resources
 - [Interview Tips & Strategies](README-Interview-Tips.md) - Behavioral, System Design, Coding Challenges ⭐ NEW
+- [System Design Questions](README-System-Design.md) - 50+ System Design Questions with Real-world Examples 🔥 NEW
 - [8-Week Study Plan](README-Study-Plan.md) - Structured preparation schedule ⭐ NEW
 - [Quick Reference Cheat Sheet](README-Cheat-Sheet.md) - Last-minute review guide ⭐ NEW
 - [Framework Comparison Guide](README-Framework-Comparison.md) - Laravel vs CodeIgniter vs Express.js 🆕 NEW
@@ -554,6 +555,9 @@ interview-prep/
 ├── 🚀 Backend & APIs
 ├── README-NodeJS.md                (40+ Node.js Questions) ✨ NEW
 │
+├── 🏗️ System Design
+├── README-System-Design.md         (50+ System Design Questions) 🔥 NEW
+│
 └── 🔥 Array Functions & Methods
     ├── README-PHP-Array-Functions.md    (Complete PHP Array Guide) 🔥 NEW
     └── README-NodeJS-Array-Methods.md   (Complete Node.js Array Guide) 🔥 NEW
@@ -563,13 +567,14 @@ interview-prep/
 
 ### 📈 Total Coverage
 
-**235+ Interview Questions** + **2 Complete Array Guides** across 9 specialized READMEs:
+**285+ Interview Questions** + **2 Complete Array Guides** across 10 specialized READMEs:
 - PHP & Frameworks: 130+ questions
 - Databases: 65+ questions  
 - Node.js: 40+ questions
+- System Design: 50+ questions 🔥 NEW
 - **Array Functions/Methods: 100+ examples** 🔥 NEW
-- Real-world examples: 450+
-- Production-ready code: 12,000+ lines
+- Real-world examples: 500+
+- Production-ready code: 15,000+ lines
 
 ---
 
