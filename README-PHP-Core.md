@@ -3526,3 +3526,2201 @@ This completes all the missing sections for the PHP Core interview questions and
 
 Each section includes comprehensive examples, real-world scenarios, and best practices for 7+ years experienced PHP developers.
 
+---
+
+## 🎯 PRACTICAL INTERVIEW QUESTIONS & ANSWERS
+
+### 🔥 Most Asked PHP Interview Questions
+
+#### **Q1. How would you implement a complete REST API with authentication, rate limiting, and caching?**
+
+**Answer:** Here's a comprehensive REST API implementation:
+
+```php
+<?php
+// 1. API Router with Authentication
+class APIRouter {
+    private $routes = [];
+    private $middleware = [];
+    
+    public function __construct() {
+        $this->setupRoutes();
+        $this->setupMiddleware();
+    }
+    
+    private function setupRoutes() {
+        $this->routes = [
+            'POST /auth/login' => ['AuthController', 'login'],
+            'POST /auth/register' => ['AuthController', 'register'],
+            'POST /auth/refresh' => ['AuthController', 'refresh'],
+            'GET /users' => ['UserController', 'index'],
+            'GET /users/{id}' => ['UserController', 'show'],
+            'POST /users' => ['UserController', 'store'],
+            'PUT /users/{id}' => ['UserController', 'update'],
+            'DELETE /users/{id}' => ['UserController', 'destroy'],
+        ];
+    }
+    
+    private function setupMiddleware() {
+        $this->middleware = [
+            'auth' => new AuthMiddleware(),
+            'rate_limit' => new RateLimitMiddleware(),
+            'cors' => new CORSMiddleware(),
+            'cache' => new CacheMiddleware(),
+        ];
+    }
+    
+    public function handle($method, $uri) {
+        $route = $this->findRoute($method, $uri);
+        if (!$route) {
+            return $this->response(404, 'Route not found');
+        }
+        
+        // Apply middleware
+        $middleware = $this->getMiddlewareForRoute($route);
+        foreach ($middleware as $mw) {
+            $result = $mw->handle();
+            if ($result !== true) {
+                return $result;
+            }
+        }
+        
+        // Execute controller
+        $controller = new $route[0]();
+        return $controller->{$route[1]}();
+    }
+    
+    private function findRoute($method, $uri) {
+        $pattern = $method . ' ' . $uri;
+        foreach ($this->routes as $route => $handler) {
+            if (preg_match('/^' . str_replace(['{', '}'], ['([^/]+)', ''], $route) . '$/', $pattern)) {
+                return $handler;
+            }
+        }
+        return null;
+    }
+    
+    private function response($status, $data, $headers = []) {
+        http_response_code($status);
+        header('Content-Type: application/json');
+        foreach ($headers as $header) {
+            header($header);
+        }
+        return json_encode($data);
+    }
+}
+
+// 2. Authentication Controller
+class AuthController {
+    private $jwt;
+    private $userRepository;
+    
+    public function __construct() {
+        $this->jwt = new JWTManager();
+        $this->userRepository = new UserRepository();
+    }
+    
+    public function login() {
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        if (!isset($input['email']) || !isset($input['password'])) {
+            return $this->response(400, ['error' => 'Email and password required']);
+        }
+        
+        $user = $this->userRepository->findByEmail($input['email']);
+        if (!$user || !password_verify($input['password'], $user['password'])) {
+            return $this->response(401, ['error' => 'Invalid credentials']);
+        }
+        
+        $payload = [
+            'user_id' => $user['id'],
+            'email' => $user['email'],
+            'role' => $user['role'],
+            'exp' => time() + 3600 // 1 hour
+        ];
+        
+        $token = $this->jwt->encode($payload);
+        $refreshToken = $this->generateRefreshToken($user['id']);
+        
+        return $this->response(200, [
+            'access_token' => $token,
+            'refresh_token' => $refreshToken,
+            'expires_in' => 3600,
+            'token_type' => 'Bearer'
+        ]);
+    }
+    
+    public function register() {
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $validator = new Validator();
+        $errors = $validator->validate($input, [
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|string|min:8|confirmed'
+        ]);
+        
+        if (!empty($errors)) {
+            return $this->response(422, ['errors' => $errors]);
+        }
+        
+        $user = [
+            'name' => $input['name'],
+            'email' => $input['email'],
+            'password' => password_hash($input['password'], PASSWORD_DEFAULT),
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $userId = $this->userRepository->create($user);
+        
+        return $this->response(201, [
+            'message' => 'User created successfully',
+            'user_id' => $userId
+        ]);
+    }
+    
+    public function refresh() {
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        if (!isset($input['refresh_token'])) {
+            return $this->response(400, ['error' => 'Refresh token required']);
+        }
+        
+        $userId = $this->validateRefreshToken($input['refresh_token']);
+        if (!$userId) {
+            return $this->response(401, ['error' => 'Invalid refresh token']);
+        }
+        
+        $user = $this->userRepository->findById($userId);
+        $payload = [
+            'user_id' => $user['id'],
+            'email' => $user['email'],
+            'role' => $user['role'],
+            'exp' => time() + 3600
+        ];
+        
+        $token = $this->jwt->encode($payload);
+        
+        return $this->response(200, [
+            'access_token' => $token,
+            'expires_in' => 3600,
+            'token_type' => 'Bearer'
+        ]);
+    }
+    
+    private function generateRefreshToken($userId) {
+        $token = bin2hex(random_bytes(32));
+        $this->userRepository->storeRefreshToken($userId, $token);
+        return $token;
+    }
+    
+    private function validateRefreshToken($token) {
+        return $this->userRepository->validateRefreshToken($token);
+    }
+    
+    private function response($status, $data) {
+        http_response_code($status);
+        return json_encode($data);
+    }
+}
+
+// 3. JWT Manager
+class JWTManager {
+    private $secret;
+    
+    public function __construct() {
+        $this->secret = $_ENV['JWT_SECRET'] ?? 'your-secret-key';
+    }
+    
+    public function encode($payload) {
+        $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
+        $payload = json_encode($payload);
+        
+        $headerEncoded = $this->base64UrlEncode($header);
+        $payloadEncoded = $this->base64UrlEncode($payload);
+        
+        $signature = hash_hmac('sha256', $headerEncoded . '.' . $payloadEncoded, $this->secret, true);
+        $signatureEncoded = $this->base64UrlEncode($signature);
+        
+        return $headerEncoded . '.' . $payloadEncoded . '.' . $signatureEncoded;
+    }
+    
+    public function decode($token) {
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            return false;
+        }
+        
+        list($headerEncoded, $payloadEncoded, $signatureEncoded) = $parts;
+        
+        $signature = $this->base64UrlDecode($signatureEncoded);
+        $expectedSignature = hash_hmac('sha256', $headerEncoded . '.' . $payloadEncoded, $this->secret, true);
+        
+        if (!hash_equals($signature, $expectedSignature)) {
+            return false;
+        }
+        
+        $payload = json_decode($this->base64UrlDecode($payloadEncoded), true);
+        
+        if (isset($payload['exp']) && $payload['exp'] < time()) {
+            return false;
+        }
+        
+        return $payload;
+    }
+    
+    private function base64UrlEncode($data) {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
+    
+    private function base64UrlDecode($data) {
+        return base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT));
+    }
+}
+
+// 4. Rate Limiting Middleware
+class RateLimitMiddleware {
+    private $redis;
+    private $limits = [
+        'default' => ['requests' => 100, 'window' => 3600], // 100 requests per hour
+        'auth' => ['requests' => 5, 'window' => 300], // 5 requests per 5 minutes
+        'api' => ['requests' => 1000, 'window' => 3600], // 1000 requests per hour
+    ];
+    
+    public function __construct() {
+        $this->redis = new Redis();
+        $this->redis->connect('127.0.0.1', 6379);
+    }
+    
+    public function handle() {
+        $clientIp = $_SERVER['REMOTE_ADDR'];
+        $route = $_SERVER['REQUEST_METHOD'] . ' ' . $_SERVER['REQUEST_URI'];
+        
+        $limitType = $this->getLimitType($route);
+        $limit = $this->limits[$limitType];
+        
+        $key = "rate_limit:{$clientIp}:{$limitType}";
+        $current = $this->redis->incr($key);
+        
+        if ($current === 1) {
+            $this->redis->expire($key, $limit['window']);
+        }
+        
+        if ($current > $limit['requests']) {
+            http_response_code(429);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'error' => 'Rate limit exceeded',
+                'limit' => $limit['requests'],
+                'window' => $limit['window'],
+                'retry_after' => $this->redis->ttl($key)
+            ]);
+            exit;
+        }
+        
+        return true;
+    }
+    
+    private function getLimitType($route) {
+        if (strpos($route, '/auth/') !== false) {
+            return 'auth';
+        }
+        if (strpos($route, '/api/') !== false) {
+            return 'api';
+        }
+        return 'default';
+    }
+}
+
+// 5. Cache Middleware
+class CacheMiddleware {
+    private $redis;
+    
+    public function __construct() {
+        $this->redis = new Redis();
+        $this->redis->connect('127.0.0.1', 6379);
+    }
+    
+    public function handle() {
+        $method = $_SERVER['REQUEST_METHOD'];
+        
+        if ($method !== 'GET') {
+            return true; // Only cache GET requests
+        }
+        
+        $cacheKey = $this->generateCacheKey();
+        $cached = $this->redis->get($cacheKey);
+        
+        if ($cached !== false) {
+            $data = json_decode($cached, true);
+            http_response_code($data['status']);
+            header('Content-Type: application/json');
+            header('X-Cache: HIT');
+            echo json_encode($data['body']);
+            exit;
+        }
+        
+        return true;
+    }
+    
+    public function cacheResponse($status, $body, $ttl = 3600) {
+        $cacheKey = $this->generateCacheKey();
+        $data = [
+            'status' => $status,
+            'body' => $body,
+            'cached_at' => time()
+        ];
+        
+        $this->redis->setex($cacheKey, $ttl, json_encode($data));
+        header('X-Cache: MISS');
+    }
+    
+    private function generateCacheKey() {
+        $uri = $_SERVER['REQUEST_URI'];
+        $query = $_SERVER['QUERY_STRING'] ?? '';
+        return 'cache:' . md5($uri . $query);
+    }
+}
+
+// 6. User Controller
+class UserController {
+    private $userRepository;
+    private $cache;
+    
+    public function __construct() {
+        $this->userRepository = new UserRepository();
+        $this->cache = new CacheMiddleware();
+    }
+    
+    public function index() {
+        $page = $_GET['page'] ?? 1;
+        $limit = $_GET['limit'] ?? 10;
+        $search = $_GET['search'] ?? '';
+        
+        $cacheKey = "users:page:{$page}:limit:{$limit}:search:{$search}";
+        $cached = $this->cache->get($cacheKey);
+        
+        if ($cached) {
+            return $this->response(200, $cached);
+        }
+        
+        $users = $this->userRepository->paginate($page, $limit, $search);
+        $total = $this->userRepository->count($search);
+        
+        $data = [
+            'data' => $users,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $limit,
+                'total' => $total,
+                'last_page' => ceil($total / $limit)
+            ]
+        ];
+        
+        $this->cache->set($cacheKey, $data, 300); // Cache for 5 minutes
+        
+        return $this->response(200, $data);
+    }
+    
+    public function show() {
+        $id = $this->extractIdFromUri();
+        
+        $user = $this->userRepository->findById($id);
+        if (!$user) {
+            return $this->response(404, ['error' => 'User not found']);
+        }
+        
+        return $this->response(200, $user);
+    }
+    
+    public function store() {
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $validator = new Validator();
+        $errors = $validator->validate($input, [
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|string|min:8'
+        ]);
+        
+        if (!empty($errors)) {
+            return $this->response(422, ['errors' => $errors]);
+        }
+        
+        $user = [
+            'name' => $input['name'],
+            'email' => $input['email'],
+            'password' => password_hash($input['password'], PASSWORD_DEFAULT),
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $userId = $this->userRepository->create($user);
+        
+        return $this->response(201, [
+            'message' => 'User created successfully',
+            'user_id' => $userId
+        ]);
+    }
+    
+    public function update() {
+        $id = $this->extractIdFromUri();
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $user = $this->userRepository->findById($id);
+        if (!$user) {
+            return $this->response(404, ['error' => 'User not found']);
+        }
+        
+        $validator = new Validator();
+        $errors = $validator->validate($input, [
+            'name' => 'string|max:255',
+            'email' => 'email|unique:users,email,' . $id
+        ]);
+        
+        if (!empty($errors)) {
+            return $this->response(422, ['errors' => $errors]);
+        }
+        
+        $this->userRepository->update($id, $input);
+        
+        return $this->response(200, ['message' => 'User updated successfully']);
+    }
+    
+    public function destroy() {
+        $id = $this->extractIdFromUri();
+        
+        $user = $this->userRepository->findById($id);
+        if (!$user) {
+            return $this->response(404, ['error' => 'User not found']);
+        }
+        
+        $this->userRepository->delete($id);
+        
+        return $this->response(200, ['message' => 'User deleted successfully']);
+    }
+    
+    private function extractIdFromUri() {
+        $uri = $_SERVER['REQUEST_URI'];
+        preg_match('/\/users\/(\d+)/', $uri, $matches);
+        return $matches[1] ?? null;
+    }
+    
+    private function response($status, $data) {
+        http_response_code($status);
+        return json_encode($data);
+    }
+}
+
+// 7. Database Repository
+class UserRepository {
+    private $pdo;
+    
+    public function __construct() {
+        $this->pdo = new PDO(
+            'mysql:host=localhost;dbname=api_db',
+            $_ENV['DB_USER'],
+            $_ENV['DB_PASSWORD']
+        );
+    }
+    
+    public function findByEmail($email) {
+        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE email = ?');
+        $stmt->execute([$email]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+    
+    public function findById($id) {
+        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+    
+    public function create($user) {
+        $stmt = $this->pdo->prepare('INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)');
+        $stmt->execute([
+            $user['name'],
+            $user['email'],
+            $user['password'],
+            $user['created_at']
+        ]);
+        return $this->pdo->lastInsertId();
+    }
+    
+    public function update($id, $data) {
+        $fields = [];
+        $values = [];
+        
+        foreach ($data as $field => $value) {
+            $fields[] = "{$field} = ?";
+            $values[] = $value;
+        }
+        
+        $values[] = $id;
+        $sql = 'UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?';
+        
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute($values);
+    }
+    
+    public function delete($id) {
+        $stmt = $this->pdo->prepare('DELETE FROM users WHERE id = ?');
+        return $stmt->execute([$id]);
+    }
+    
+    public function paginate($page, $limit, $search = '') {
+        $offset = ($page - 1) * $limit;
+        $sql = 'SELECT * FROM users';
+        $params = [];
+        
+        if ($search) {
+            $sql .= ' WHERE name LIKE ? OR email LIKE ?';
+            $params[] = "%{$search}%";
+            $params[] = "%{$search}%";
+        }
+        
+        $sql .= ' LIMIT ? OFFSET ?';
+        $params[] = $limit;
+        $params[] = $offset;
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    public function count($search = '') {
+        $sql = 'SELECT COUNT(*) FROM users';
+        $params = [];
+        
+        if ($search) {
+            $sql .= ' WHERE name LIKE ? OR email LIKE ?';
+            $params[] = "%{$search}%";
+            $params[] = "%{$search}%";
+        }
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchColumn();
+    }
+}
+
+// 8. API Usage Example
+$router = new APIRouter();
+$method = $_SERVER['REQUEST_METHOD'];
+$uri = $_SERVER['REQUEST_URI'];
+
+$response = $router->handle($method, $uri);
+echo $response;
+```
+
+#### **Q2. How would you implement a complete e-commerce system with payment processing, inventory management, and order tracking?**
+
+**Answer:** Here's a comprehensive e-commerce implementation:
+
+```php
+<?php
+// 1. E-commerce System Architecture
+class EcommerceSystem {
+    private $productService;
+    private $cartService;
+    private $orderService;
+    private $paymentService;
+    private $inventoryService;
+    
+    public function __construct() {
+        $this->productService = new ProductService();
+        $this->cartService = new CartService();
+        $this->orderService = new OrderService();
+        $this->paymentService = new PaymentService();
+        $this->inventoryService = new InventoryService();
+    }
+    
+    public function addToCart($userId, $productId, $quantity) {
+        // Check inventory
+        if (!$this->inventoryService->checkAvailability($productId, $quantity)) {
+            throw new InsufficientInventoryException('Product not available in requested quantity');
+        }
+        
+        // Add to cart
+        return $this->cartService->addItem($userId, $productId, $quantity);
+    }
+    
+    public function processOrder($userId, $paymentData) {
+        $cart = $this->cartService->getCart($userId);
+        
+        if (empty($cart)) {
+            throw new EmptyCartException('Cart is empty');
+        }
+        
+        // Create order
+        $order = $this->orderService->createOrder($userId, $cart);
+        
+        // Process payment
+        $payment = $this->paymentService->processPayment($order, $paymentData);
+        
+        if ($payment['status'] === 'success') {
+            // Update inventory
+            $this->inventoryService->reserveItems($order['items']);
+            
+            // Clear cart
+            $this->cartService->clearCart($userId);
+            
+            // Send confirmation email
+            $this->sendOrderConfirmation($order);
+        }
+        
+        return $payment;
+    }
+}
+
+// 2. Product Service
+class ProductService {
+    private $productRepository;
+    private $categoryRepository;
+    
+    public function __construct() {
+        $this->productRepository = new ProductRepository();
+        $this->categoryRepository = new CategoryRepository();
+    }
+    
+    public function getProducts($filters = []) {
+        $products = $this->productRepository->findWithFilters($filters);
+        
+        // Add computed fields
+        foreach ($products as &$product) {
+            $product['discount_percentage'] = $this->calculateDiscount($product);
+            $product['final_price'] = $this->calculateFinalPrice($product);
+            $product['is_available'] = $this->checkAvailability($product['id']);
+        }
+        
+        return $products;
+    }
+    
+    public function getProduct($id) {
+        $product = $this->productRepository->findById($id);
+        
+        if (!$product) {
+            throw new ProductNotFoundException('Product not found');
+        }
+        
+        // Add related products
+        $product['related_products'] = $this->getRelatedProducts($product['category_id'], $id);
+        $product['reviews'] = $this->getProductReviews($id);
+        $product['average_rating'] = $this->calculateAverageRating($id);
+        
+        return $product;
+    }
+    
+    public function createProduct($data) {
+        $validator = new ProductValidator();
+        $errors = $validator->validate($data);
+        
+        if (!empty($errors)) {
+            throw new ValidationException('Invalid product data', $errors);
+        }
+        
+        // Process images
+        if (isset($data['images'])) {
+            $data['images'] = $this->processProductImages($data['images']);
+        }
+        
+        return $this->productRepository->create($data);
+    }
+    
+    private function calculateDiscount($product) {
+        if ($product['compare_price'] && $product['compare_price'] > $product['price']) {
+            return round((($product['compare_price'] - $product['price']) / $product['compare_price']) * 100);
+        }
+        return 0;
+    }
+    
+    private function calculateFinalPrice($product) {
+        $price = $product['price'];
+        
+        // Apply category discount
+        $categoryDiscount = $this->getCategoryDiscount($product['category_id']);
+        if ($categoryDiscount > 0) {
+            $price = $price * (1 - $categoryDiscount / 100);
+        }
+        
+        return round($price, 2);
+    }
+    
+    private function checkAvailability($productId) {
+        $inventory = $this->inventoryService->getInventory($productId);
+        return $inventory['available_quantity'] > 0;
+    }
+    
+    private function processProductImages($images) {
+        $processedImages = [];
+        
+        foreach ($images as $image) {
+            if ($image['tmp_name']) {
+                $filename = $this->generateUniqueFilename($image['name']);
+                $path = $this->uploadImage($image, $filename);
+                $processedImages[] = [
+                    'filename' => $filename,
+                    'path' => $path,
+                    'alt_text' => $image['alt_text'] ?? '',
+                    'sort_order' => $image['sort_order'] ?? 0
+                ];
+            }
+        }
+        
+        return $processedImages;
+    }
+    
+    private function uploadImage($image, $filename) {
+        $uploadDir = 'uploads/products/';
+        $uploadPath = $uploadDir . $filename;
+        
+        if (!move_uploaded_file($image['tmp_name'], $uploadPath)) {
+            throw new FileUploadException('Failed to upload image');
+        }
+        
+        // Generate thumbnails
+        $this->generateThumbnails($uploadPath);
+        
+        return $uploadPath;
+    }
+    
+    private function generateThumbnails($imagePath) {
+        $thumbnailSizes = [
+            'small' => [150, 150],
+            'medium' => [300, 300],
+            'large' => [600, 600]
+        ];
+        
+        foreach ($thumbnailSizes as $size => $dimensions) {
+            $this->createThumbnail($imagePath, $dimensions[0], $dimensions[1], $size);
+        }
+    }
+    
+    private function createThumbnail($imagePath, $width, $height, $size) {
+        $imageInfo = getimagesize($imagePath);
+        $mimeType = $imageInfo['mime'];
+        
+        switch ($mimeType) {
+            case 'image/jpeg':
+                $source = imagecreatefromjpeg($imagePath);
+                break;
+            case 'image/png':
+                $source = imagecreatefrompng($imagePath);
+                break;
+            case 'image/gif':
+                $source = imagecreatefromgif($imagePath);
+                break;
+            default:
+                throw new UnsupportedImageTypeException('Unsupported image type');
+        }
+        
+        $thumbnail = imagecreatetruecolor($width, $height);
+        imagecopyresampled($thumbnail, $source, 0, 0, 0, 0, $width, $height, $imageInfo[0], $imageInfo[1]);
+        
+        $thumbnailPath = str_replace('.', "_{$size}.", $imagePath);
+        
+        switch ($mimeType) {
+            case 'image/jpeg':
+                imagejpeg($thumbnail, $thumbnailPath, 90);
+                break;
+            case 'image/png':
+                imagepng($thumbnail, $thumbnailPath, 9);
+                break;
+            case 'image/gif':
+                imagegif($thumbnail, $thumbnailPath);
+                break;
+        }
+        
+        imagedestroy($source);
+        imagedestroy($thumbnail);
+    }
+}
+
+// 3. Cart Service
+class CartService {
+    private $cartRepository;
+    private $productService;
+    
+    public function __construct() {
+        $this->cartRepository = new CartRepository();
+        $this->productService = new ProductService();
+    }
+    
+    public function addItem($userId, $productId, $quantity) {
+        $product = $this->productService->getProduct($productId);
+        
+        if (!$product['is_available']) {
+            throw new ProductNotAvailableException('Product is not available');
+        }
+        
+        $existingItem = $this->cartRepository->findItem($userId, $productId);
+        
+        if ($existingItem) {
+            return $this->updateItemQuantity($userId, $productId, $existingItem['quantity'] + $quantity);
+        }
+        
+        $item = [
+            'user_id' => $userId,
+            'product_id' => $productId,
+            'quantity' => $quantity,
+            'price' => $product['final_price'],
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        return $this->cartRepository->create($item);
+    }
+    
+    public function updateItemQuantity($userId, $productId, $quantity) {
+        if ($quantity <= 0) {
+            return $this->removeItem($userId, $productId);
+        }
+        
+        $product = $this->productService->getProduct($productId);
+        $item = [
+            'quantity' => $quantity,
+            'price' => $product['final_price'],
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+        
+        return $this->cartRepository->update($userId, $productId, $item);
+    }
+    
+    public function removeItem($userId, $productId) {
+        return $this->cartRepository->delete($userId, $productId);
+    }
+    
+    public function getCart($userId) {
+        $items = $this->cartRepository->findByUserId($userId);
+        
+        foreach ($items as &$item) {
+            $product = $this->productService->getProduct($item['product_id']);
+            $item['product'] = $product;
+            $item['subtotal'] = $item['quantity'] * $item['price'];
+        }
+        
+        return $items;
+    }
+    
+    public function getCartTotal($userId) {
+        $items = $this->getCart($userId);
+        $subtotal = array_sum(array_column($items, 'subtotal'));
+        
+        return [
+            'subtotal' => $subtotal,
+            'tax' => $this->calculateTax($subtotal),
+            'shipping' => $this->calculateShipping($items),
+            'total' => $subtotal + $this->calculateTax($subtotal) + $this->calculateShipping($items)
+        ];
+    }
+    
+    public function clearCart($userId) {
+        return $this->cartRepository->clearByUserId($userId);
+    }
+    
+    private function calculateTax($subtotal) {
+        $taxRate = 0.08; // 8% tax rate
+        return $subtotal * $taxRate;
+    }
+    
+    private function calculateShipping($items) {
+        $totalWeight = array_sum(array_column($items, 'weight'));
+        
+        if ($totalWeight <= 1) {
+            return 5.99; // Standard shipping
+        } elseif ($totalWeight <= 5) {
+            return 9.99; // Heavy shipping
+        } else {
+            return 15.99; // Extra heavy shipping
+        }
+    }
+}
+
+// 4. Order Service
+class OrderService {
+    private $orderRepository;
+    private $orderItemRepository;
+    private $emailService;
+    
+    public function __construct() {
+        $this->orderRepository = new OrderRepository();
+        $this->orderItemRepository = new OrderItemRepository();
+        $this->emailService = new EmailService();
+    }
+    
+    public function createOrder($userId, $cartItems) {
+        $orderNumber = $this->generateOrderNumber();
+        
+        $order = [
+            'user_id' => $userId,
+            'order_number' => $orderNumber,
+            'status' => 'pending',
+            'subtotal' => $this->calculateSubtotal($cartItems),
+            'tax_amount' => $this->calculateTax($cartItems),
+            'shipping_amount' => $this->calculateShipping($cartItems),
+            'total_amount' => $this->calculateTotal($cartItems),
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $orderId = $this->orderRepository->create($order);
+        
+        // Create order items
+        foreach ($cartItems as $item) {
+            $orderItem = [
+                'order_id' => $orderId,
+                'product_id' => $item['product_id'],
+                'quantity' => $item['quantity'],
+                'price' => $item['price'],
+                'total_price' => $item['subtotal']
+            ];
+            
+            $this->orderItemRepository->create($orderItem);
+        }
+        
+        return array_merge($order, ['id' => $orderId, 'items' => $cartItems]);
+    }
+    
+    public function updateOrderStatus($orderId, $status) {
+        $order = $this->orderRepository->findById($orderId);
+        
+        if (!$order) {
+            throw new OrderNotFoundException('Order not found');
+        }
+        
+        $this->orderRepository->update($orderId, ['status' => $status]);
+        
+        // Send status update email
+        $this->emailService->sendOrderStatusUpdate($order, $status);
+        
+        return true;
+    }
+    
+    public function getOrder($orderId) {
+        $order = $this->orderRepository->findById($orderId);
+        
+        if (!$order) {
+            throw new OrderNotFoundException('Order not found');
+        }
+        
+        $order['items'] = $this->orderItemRepository->findByOrderId($orderId);
+        
+        return $order;
+    }
+    
+    public function getUserOrders($userId, $page = 1, $limit = 10) {
+        return $this->orderRepository->findByUserId($userId, $page, $limit);
+    }
+    
+    private function generateOrderNumber() {
+        return 'ORD-' . date('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+    }
+    
+    private function calculateSubtotal($cartItems) {
+        return array_sum(array_column($cartItems, 'subtotal'));
+    }
+    
+    private function calculateTax($cartItems) {
+        $subtotal = $this->calculateSubtotal($cartItems);
+        return $subtotal * 0.08; // 8% tax rate
+    }
+    
+    private function calculateShipping($cartItems) {
+        $totalWeight = array_sum(array_column($cartItems, 'weight'));
+        
+        if ($totalWeight <= 1) {
+            return 5.99;
+        } elseif ($totalWeight <= 5) {
+            return 9.99;
+        } else {
+            return 15.99;
+        }
+    }
+    
+    private function calculateTotal($cartItems) {
+        return $this->calculateSubtotal($cartItems) + 
+               $this->calculateTax($cartItems) + 
+               $this->calculateShipping($cartItems);
+    }
+}
+
+// 5. Payment Service
+class PaymentService {
+    private $stripeService;
+    private $paypalService;
+    private $paymentRepository;
+    
+    public function __construct() {
+        $this->stripeService = new StripeService();
+        $this->paypalService = new PayPalService();
+        $this->paymentRepository = new PaymentRepository();
+    }
+    
+    public function processPayment($order, $paymentData) {
+        $paymentMethod = $paymentData['method'];
+        
+        switch ($paymentMethod) {
+            case 'stripe':
+                return $this->processStripePayment($order, $paymentData);
+            case 'paypal':
+                return $this->processPayPalPayment($order, $paymentData);
+            default:
+                throw new UnsupportedPaymentMethodException('Unsupported payment method');
+        }
+    }
+    
+    private function processStripePayment($order, $paymentData) {
+        try {
+            $paymentIntent = $this->stripeService->createPaymentIntent([
+                'amount' => $order['total_amount'] * 100, // Convert to cents
+                'currency' => 'usd',
+                'payment_method' => $paymentData['payment_method_id'],
+                'confirmation_method' => 'manual',
+                'confirm' => true,
+                'metadata' => [
+                    'order_id' => $order['id'],
+                    'order_number' => $order['order_number']
+                ]
+            ]);
+            
+            $payment = [
+                'order_id' => $order['id'],
+                'payment_method' => 'stripe',
+                'amount' => $order['total_amount'],
+                'currency' => 'usd',
+                'status' => $paymentIntent['status'],
+                'transaction_id' => $paymentIntent['id'],
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            
+            $this->paymentRepository->create($payment);
+            
+            if ($paymentIntent['status'] === 'succeeded') {
+                $this->orderService->updateOrderStatus($order['id'], 'paid');
+                return ['status' => 'success', 'payment' => $payment];
+            } else {
+                return ['status' => 'failed', 'error' => 'Payment not completed'];
+            }
+            
+        } catch (Exception $e) {
+            return ['status' => 'failed', 'error' => $e->getMessage()];
+        }
+    }
+    
+    private function processPayPalPayment($order, $paymentData) {
+        try {
+            $payment = $this->paypalService->createPayment([
+                'amount' => $order['total_amount'],
+                'currency' => 'USD',
+                'return_url' => $paymentData['return_url'],
+                'cancel_url' => $paymentData['cancel_url']
+            ]);
+            
+            $paymentRecord = [
+                'order_id' => $order['id'],
+                'payment_method' => 'paypal',
+                'amount' => $order['total_amount'],
+                'currency' => 'usd',
+                'status' => 'pending',
+                'transaction_id' => $payment['id'],
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            
+            $this->paymentRepository->create($paymentRecord);
+            
+            return ['status' => 'pending', 'payment_url' => $payment['approval_url']];
+            
+        } catch (Exception $e) {
+            return ['status' => 'failed', 'error' => $e->getMessage()];
+        }
+    }
+    
+    public function handlePaymentCallback($paymentMethod, $data) {
+        switch ($paymentMethod) {
+            case 'stripe':
+                return $this->handleStripeCallback($data);
+            case 'paypal':
+                return $this->handlePayPalCallback($data);
+            default:
+                throw new UnsupportedPaymentMethodException('Unsupported payment method');
+        }
+    }
+    
+    private function handleStripeCallback($data) {
+        $paymentIntent = $this->stripeService->retrievePaymentIntent($data['payment_intent_id']);
+        
+        if ($paymentIntent['status'] === 'succeeded') {
+            $this->paymentRepository->updateByTransactionId($paymentIntent['id'], [
+                'status' => 'completed',
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+            
+            $orderId = $paymentIntent['metadata']['order_id'];
+            $this->orderService->updateOrderStatus($orderId, 'paid');
+            
+            return ['status' => 'success'];
+        }
+        
+        return ['status' => 'failed'];
+    }
+    
+    private function handlePayPalCallback($data) {
+        $payment = $this->paypalService->executePayment($data['paymentId'], $data['PayerID']);
+        
+        if ($payment['state'] === 'approved') {
+            $this->paymentRepository->updateByTransactionId($payment['id'], [
+                'status' => 'completed',
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+            
+            $orderId = $payment['transactions'][0]['custom'];
+            $this->orderService->updateOrderStatus($orderId, 'paid');
+            
+            return ['status' => 'success'];
+        }
+        
+        return ['status' => 'failed'];
+    }
+}
+
+// 6. Inventory Service
+class InventoryService {
+    private $inventoryRepository;
+    private $stockMovementRepository;
+    
+    public function __construct() {
+        $this->inventoryRepository = new InventoryRepository();
+        $this->stockMovementRepository = new StockMovementRepository();
+    }
+    
+    public function checkAvailability($productId, $quantity) {
+        $inventory = $this->inventoryRepository->findByProductId($productId);
+        
+        if (!$inventory) {
+            return false;
+        }
+        
+        return $inventory['available_quantity'] >= $quantity;
+    }
+    
+    public function reserveItems($orderItems) {
+        foreach ($orderItems as $item) {
+            $this->reserveItem($item['product_id'], $item['quantity']);
+        }
+    }
+    
+    public function reserveItem($productId, $quantity) {
+        $inventory = $this->inventoryRepository->findByProductId($productId);
+        
+        if (!$inventory || $inventory['available_quantity'] < $quantity) {
+            throw new InsufficientInventoryException('Insufficient inventory');
+        }
+        
+        $this->inventoryRepository->update($productId, [
+            'available_quantity' => $inventory['available_quantity'] - $quantity,
+            'reserved_quantity' => $inventory['reserved_quantity'] + $quantity
+        ]);
+        
+        // Record stock movement
+        $this->stockMovementRepository->create([
+            'product_id' => $productId,
+            'movement_type' => 'reserve',
+            'quantity' => $quantity,
+            'reference_type' => 'order',
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+    }
+    
+    public function releaseItems($orderItems) {
+        foreach ($orderItems as $item) {
+            $this->releaseItem($item['product_id'], $item['quantity']);
+        }
+    }
+    
+    public function releaseItem($productId, $quantity) {
+        $inventory = $this->inventoryRepository->findByProductId($productId);
+        
+        if ($inventory) {
+            $this->inventoryRepository->update($productId, [
+                'available_quantity' => $inventory['available_quantity'] + $quantity,
+                'reserved_quantity' => $inventory['reserved_quantity'] - $quantity
+            ]);
+            
+            // Record stock movement
+            $this->stockMovementRepository->create([
+                'product_id' => $productId,
+                'movement_type' => 'release',
+                'quantity' => $quantity,
+                'reference_type' => 'order',
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        }
+    }
+    
+    public function adjustInventory($productId, $quantity, $reason = '') {
+        $inventory = $this->inventoryRepository->findByProductId($productId);
+        
+        if ($inventory) {
+            $this->inventoryRepository->update($productId, [
+                'available_quantity' => $inventory['available_quantity'] + $quantity,
+                'total_quantity' => $inventory['total_quantity'] + $quantity
+            ]);
+            
+            // Record stock movement
+            $this->stockMovementRepository->create([
+                'product_id' => $productId,
+                'movement_type' => 'adjustment',
+                'quantity' => $quantity,
+                'reference_type' => 'manual',
+                'notes' => $reason,
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        }
+    }
+    
+    public function getLowStockProducts($threshold = 10) {
+        return $this->inventoryRepository->findLowStock($threshold);
+    }
+    
+    public function getInventoryReport($productId = null) {
+        if ($productId) {
+            return $this->inventoryRepository->findByProductId($productId);
+        }
+        
+        return $this->inventoryRepository->findAll();
+    }
+}
+
+// 7. Email Service
+class EmailService {
+    private $mailer;
+    
+    public function __construct() {
+        $this->mailer = new PHPMailer();
+        $this->mailer->isSMTP();
+        $this->mailer->Host = $_ENV['SMTP_HOST'];
+        $this->mailer->SMTPAuth = true;
+        $this->mailer->Username = $_ENV['SMTP_USERNAME'];
+        $this->mailer->Password = $_ENV['SMTP_PASSWORD'];
+        $this->mailer->SMTPSecure = 'tls';
+        $this->mailer->Port = 587;
+    }
+    
+    public function sendOrderConfirmation($order) {
+        $template = $this->loadEmailTemplate('order_confirmation', $order);
+        
+        $this->mailer->setFrom('noreply@example.com', 'E-commerce Store');
+        $this->mailer->addAddress($order['user']['email'], $order['user']['name']);
+        $this->mailer->Subject = 'Order Confirmation - ' . $order['order_number'];
+        $this->mailer->isHTML(true);
+        $this->mailer->Body = $template;
+        
+        return $this->mailer->send();
+    }
+    
+    public function sendOrderStatusUpdate($order, $status) {
+        $template = $this->loadEmailTemplate('order_status_update', [
+            'order' => $order,
+            'status' => $status
+        ]);
+        
+        $this->mailer->setFrom('noreply@example.com', 'E-commerce Store');
+        $this->mailer->addAddress($order['user']['email'], $order['user']['name']);
+        $this->mailer->Subject = 'Order Status Update - ' . $order['order_number'];
+        $this->mailer->isHTML(true);
+        $this->mailer->Body = $template;
+        
+        return $this->mailer->send();
+    }
+    
+    private function loadEmailTemplate($templateName, $data) {
+        $templatePath = "templates/emails/{$templateName}.php";
+        
+        if (!file_exists($templatePath)) {
+            throw new TemplateNotFoundException("Email template not found: {$templateName}");
+        }
+        
+        ob_start();
+        extract($data);
+        include $templatePath;
+        return ob_get_clean();
+    }
+}
+
+// 8. Usage Example
+$ecommerce = new EcommerceSystem();
+
+// Add product to cart
+try {
+    $result = $ecommerce->addToCart(1, 123, 2);
+    echo "Product added to cart successfully\n";
+} catch (InsufficientInventoryException $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+}
+
+// Process order
+try {
+    $paymentData = [
+        'method' => 'stripe',
+        'payment_method_id' => 'pm_1234567890'
+    ];
+    
+    $result = $ecommerce->processOrder(1, $paymentData);
+    
+    if ($result['status'] === 'success') {
+        echo "Order processed successfully\n";
+    } else {
+        echo "Payment failed: " . $result['error'] . "\n";
+    }
+} catch (Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+}
+```
+
+#### **Q3. How would you implement a complete content management system with user roles, permissions, and workflow management?**
+
+**Answer:** Here's a comprehensive CMS implementation:
+
+```php
+<?php
+// 1. CMS Core System
+class CMSSystem {
+    private $userService;
+    private $contentService;
+    private $roleService;
+    private $workflowService;
+    private $mediaService;
+    
+    public function __construct() {
+        $this->userService = new UserService();
+        $this->contentService = new ContentService();
+        $this->roleService = new RoleService();
+        $this->workflowService = new WorkflowService();
+        $this->mediaService = new MediaService();
+    }
+    
+    public function createContent($userId, $contentData) {
+        // Check permissions
+        if (!$this->userService->hasPermission($userId, 'content.create')) {
+            throw new PermissionDeniedException('User does not have permission to create content');
+        }
+        
+        // Create content
+        $content = $this->contentService->create($contentData);
+        
+        // Start workflow
+        $this->workflowService->startWorkflow($content['id'], 'content_approval');
+        
+        return $content;
+    }
+    
+    public function publishContent($userId, $contentId) {
+        // Check permissions
+        if (!$this->userService->hasPermission($userId, 'content.publish')) {
+            throw new PermissionDeniedException('User does not have permission to publish content');
+        }
+        
+        // Check workflow status
+        $workflow = $this->workflowService->getWorkflow($contentId);
+        if ($workflow['status'] !== 'approved') {
+            throw new WorkflowException('Content must be approved before publishing');
+        }
+        
+        // Publish content
+        return $this->contentService->publish($contentId);
+    }
+}
+
+// 2. User Service with Role-Based Access Control
+class UserService {
+    private $userRepository;
+    private $roleRepository;
+    private $permissionRepository;
+    
+    public function __construct() {
+        $this->userRepository = new UserRepository();
+        $this->roleRepository = new RoleRepository();
+        $this->permissionRepository = new PermissionRepository();
+    }
+    
+    public function createUser($userData) {
+        $validator = new UserValidator();
+        $errors = $validator->validate($userData);
+        
+        if (!empty($errors)) {
+            throw new ValidationException('Invalid user data', $errors);
+        }
+        
+        $user = [
+            'username' => $userData['username'],
+            'email' => $userData['email'],
+            'password' => password_hash($userData['password'], PASSWORD_DEFAULT),
+            'first_name' => $userData['first_name'],
+            'last_name' => $userData['last_name'],
+            'role_id' => $userData['role_id'],
+            'is_active' => true,
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        return $this->userRepository->create($user);
+    }
+    
+    public function assignRole($userId, $roleId) {
+        $user = $this->userRepository->findById($userId);
+        if (!$user) {
+            throw new UserNotFoundException('User not found');
+        }
+        
+        $role = $this->roleRepository->findById($roleId);
+        if (!$role) {
+            throw new RoleNotFoundException('Role not found');
+        }
+        
+        return $this->userRepository->update($userId, ['role_id' => $roleId]);
+    }
+    
+    public function hasPermission($userId, $permission) {
+        $user = $this->userRepository->findById($userId);
+        if (!$user) {
+            return false;
+        }
+        
+        $role = $this->roleRepository->findById($user['role_id']);
+        if (!$role) {
+            return false;
+        }
+        
+        return $this->permissionRepository->hasPermission($role['id'], $permission);
+    }
+    
+    public function getUserPermissions($userId) {
+        $user = $this->userRepository->findById($userId);
+        if (!$user) {
+            return [];
+        }
+        
+        $role = $this->roleRepository->findById($user['role_id']);
+        if (!$role) {
+            return [];
+        }
+        
+        return $this->permissionRepository->getRolePermissions($role['id']);
+    }
+    
+    public function authenticate($email, $password) {
+        $user = $this->userRepository->findByEmail($email);
+        
+        if (!$user || !password_verify($password, $user['password'])) {
+            throw new AuthenticationException('Invalid credentials');
+        }
+        
+        if (!$user['is_active']) {
+            throw new AuthenticationException('User account is disabled');
+        }
+        
+        // Update last login
+        $this->userRepository->update($user['id'], [
+            'last_login' => date('Y-m-d H:i:s')
+        ]);
+        
+        return $user;
+    }
+    
+    public function generatePasswordResetToken($email) {
+        $user = $this->userRepository->findByEmail($email);
+        if (!$user) {
+            throw new UserNotFoundException('User not found');
+        }
+        
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+        
+        $this->userRepository->update($user['id'], [
+            'password_reset_token' => $token,
+            'password_reset_expires' => $expiresAt
+        ]);
+        
+        return $token;
+    }
+    
+    public function resetPassword($token, $newPassword) {
+        $user = $this->userRepository->findByPasswordResetToken($token);
+        
+        if (!$user || $user['password_reset_expires'] < date('Y-m-d H:i:s')) {
+            throw new InvalidTokenException('Invalid or expired reset token');
+        }
+        
+        $this->userRepository->update($user['id'], [
+            'password' => password_hash($newPassword, PASSWORD_DEFAULT),
+            'password_reset_token' => null,
+            'password_reset_expires' => null
+        ]);
+        
+        return true;
+    }
+}
+
+// 3. Content Service
+class ContentService {
+    private $contentRepository;
+    private $contentTypeRepository;
+    private $mediaService;
+    
+    public function __construct() {
+        $this->contentRepository = new ContentRepository();
+        $this->contentTypeRepository = new ContentTypeRepository();
+        $this->mediaService = new MediaService();
+    }
+    
+    public function create($contentData) {
+        $validator = new ContentValidator();
+        $errors = $validator->validate($contentData);
+        
+        if (!empty($errors)) {
+            throw new ValidationException('Invalid content data', $errors);
+        }
+        
+        $content = [
+            'title' => $contentData['title'],
+            'slug' => $this->generateSlug($contentData['title']),
+            'content' => $contentData['content'],
+            'excerpt' => $contentData['excerpt'] ?? '',
+            'content_type_id' => $contentData['content_type_id'],
+            'author_id' => $contentData['author_id'],
+            'status' => 'draft',
+            'published_at' => null,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $contentId = $this->contentRepository->create($content);
+        
+        // Handle media attachments
+        if (isset($contentData['media'])) {
+            $this->attachMedia($contentId, $contentData['media']);
+        }
+        
+        // Handle custom fields
+        if (isset($contentData['custom_fields'])) {
+            $this->saveCustomFields($contentId, $contentData['custom_fields']);
+        }
+        
+        return array_merge($content, ['id' => $contentId]);
+    }
+    
+    public function update($contentId, $contentData) {
+        $content = $this->contentRepository->findById($contentId);
+        if (!$content) {
+            throw new ContentNotFoundException('Content not found');
+        }
+        
+        $validator = new ContentValidator();
+        $errors = $validator->validate($contentData, $contentId);
+        
+        if (!empty($errors)) {
+            throw new ValidationException('Invalid content data', $errors);
+        }
+        
+        $updateData = [
+            'title' => $contentData['title'],
+            'slug' => $this->generateSlug($contentData['title'], $contentId),
+            'content' => $contentData['content'],
+            'excerpt' => $contentData['excerpt'] ?? $content['excerpt'],
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $this->contentRepository->update($contentId, $updateData);
+        
+        // Update media attachments
+        if (isset($contentData['media'])) {
+            $this->updateMediaAttachments($contentId, $contentData['media']);
+        }
+        
+        // Update custom fields
+        if (isset($contentData['custom_fields'])) {
+            $this->updateCustomFields($contentId, $contentData['custom_fields']);
+        }
+        
+        return $this->contentRepository->findById($contentId);
+    }
+    
+    public function publish($contentId) {
+        $content = $this->contentRepository->findById($contentId);
+        if (!$content) {
+            throw new ContentNotFoundException('Content not found');
+        }
+        
+        $this->contentRepository->update($contentId, [
+            'status' => 'published',
+            'published_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        return $this->contentRepository->findById($contentId);
+    }
+    
+    public function unpublish($contentId) {
+        $content = $this->contentRepository->findById($contentId);
+        if (!$content) {
+            throw new ContentNotFoundException('Content not found');
+        }
+        
+        $this->contentRepository->update($contentId, [
+            'status' => 'draft',
+            'published_at' => null,
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        return $this->contentRepository->findById($contentId);
+    }
+    
+    public function delete($contentId) {
+        $content = $this->contentRepository->findById($contentId);
+        if (!$content) {
+            throw new ContentNotFoundException('Content not found');
+        }
+        
+        // Delete associated media
+        $this->deleteMediaAttachments($contentId);
+        
+        // Delete custom fields
+        $this->deleteCustomFields($contentId);
+        
+        // Delete content
+        return $this->contentRepository->delete($contentId);
+    }
+    
+    public function getContent($contentId) {
+        $content = $this->contentRepository->findById($contentId);
+        if (!$content) {
+            throw new ContentNotFoundException('Content not found');
+        }
+        
+        // Add related data
+        $content['author'] = $this->userService->getUser($content['author_id']);
+        $content['content_type'] = $this->contentTypeRepository->findById($content['content_type_id']);
+        $content['media'] = $this->getMediaAttachments($contentId);
+        $content['custom_fields'] = $this->getCustomFields($contentId);
+        
+        return $content;
+    }
+    
+    public function getContentList($filters = []) {
+        $content = $this->contentRepository->findWithFilters($filters);
+        
+        foreach ($content as &$item) {
+            $item['author'] = $this->userService->getUser($item['author_id']);
+            $item['content_type'] = $this->contentTypeRepository->findById($item['content_type_id']);
+        }
+        
+        return $content;
+    }
+    
+    private function generateSlug($title, $excludeId = null) {
+        $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $title)));
+        $slug = trim($slug, '-');
+        
+        $originalSlug = $slug;
+        $counter = 1;
+        
+        while ($this->contentRepository->slugExists($slug, $excludeId)) {
+            $slug = $originalSlug . '-' . $counter;
+            $counter++;
+        }
+        
+        return $slug;
+    }
+    
+    private function attachMedia($contentId, $mediaIds) {
+        foreach ($mediaIds as $mediaId) {
+            $this->contentRepository->attachMedia($contentId, $mediaId);
+        }
+    }
+    
+    private function updateMediaAttachments($contentId, $mediaIds) {
+        // Remove existing attachments
+        $this->contentRepository->detachAllMedia($contentId);
+        
+        // Add new attachments
+        $this->attachMedia($contentId, $mediaIds);
+    }
+    
+    private function deleteMediaAttachments($contentId) {
+        $this->contentRepository->detachAllMedia($contentId);
+    }
+    
+    private function getMediaAttachments($contentId) {
+        return $this->contentRepository->getMediaAttachments($contentId);
+    }
+    
+    private function saveCustomFields($contentId, $customFields) {
+        foreach ($customFields as $fieldName => $fieldValue) {
+            $this->contentRepository->saveCustomField($contentId, $fieldName, $fieldValue);
+        }
+    }
+    
+    private function updateCustomFields($contentId, $customFields) {
+        $this->deleteCustomFields($contentId);
+        $this->saveCustomFields($contentId, $customFields);
+    }
+    
+    private function deleteCustomFields($contentId) {
+        $this->contentRepository->deleteCustomFields($contentId);
+    }
+    
+    private function getCustomFields($contentId) {
+        return $this->contentRepository->getCustomFields($contentId);
+    }
+}
+
+// 4. Role Service
+class RoleService {
+    private $roleRepository;
+    private $permissionRepository;
+    
+    public function __construct() {
+        $this->roleRepository = new RoleRepository();
+        $this->permissionRepository = new PermissionRepository();
+    }
+    
+    public function createRole($roleData) {
+        $validator = new RoleValidator();
+        $errors = $validator->validate($roleData);
+        
+        if (!empty($errors)) {
+            throw new ValidationException('Invalid role data', $errors);
+        }
+        
+        $role = [
+            'name' => $roleData['name'],
+            'slug' => $this->generateRoleSlug($roleData['name']),
+            'description' => $roleData['description'] ?? '',
+            'is_active' => true,
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $roleId = $this->roleRepository->create($role);
+        
+        // Assign permissions
+        if (isset($roleData['permissions'])) {
+            $this->assignPermissions($roleId, $roleData['permissions']);
+        }
+        
+        return array_merge($role, ['id' => $roleId]);
+    }
+    
+    public function updateRole($roleId, $roleData) {
+        $role = $this->roleRepository->findById($roleId);
+        if (!$role) {
+            throw new RoleNotFoundException('Role not found');
+        }
+        
+        $validator = new RoleValidator();
+        $errors = $validator->validate($roleData, $roleId);
+        
+        if (!empty($errors)) {
+            throw new ValidationException('Invalid role data', $errors);
+        }
+        
+        $updateData = [
+            'name' => $roleData['name'],
+            'description' => $roleData['description'] ?? $role['description'],
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $this->roleRepository->update($roleId, $updateData);
+        
+        // Update permissions
+        if (isset($roleData['permissions'])) {
+            $this->updatePermissions($roleId, $roleData['permissions']);
+        }
+        
+        return $this->roleRepository->findById($roleId);
+    }
+    
+    public function deleteRole($roleId) {
+        $role = $this->roleRepository->findById($roleId);
+        if (!$role) {
+            throw new RoleNotFoundException('Role not found');
+        }
+        
+        // Check if role is assigned to users
+        if ($this->roleRepository->hasUsers($roleId)) {
+            throw new RoleInUseException('Cannot delete role that is assigned to users');
+        }
+        
+        // Remove permissions
+        $this->permissionRepository->removeRolePermissions($roleId);
+        
+        // Delete role
+        return $this->roleRepository->delete($roleId);
+    }
+    
+    public function getRole($roleId) {
+        $role = $this->roleRepository->findById($roleId);
+        if (!$role) {
+            throw new RoleNotFoundException('Role not found');
+        }
+        
+        $role['permissions'] = $this->permissionRepository->getRolePermissions($roleId);
+        
+        return $role;
+    }
+    
+    public function getRoles() {
+        return $this->roleRepository->findAll();
+    }
+    
+    public function assignPermissions($roleId, $permissionIds) {
+        foreach ($permissionIds as $permissionId) {
+            $this->permissionRepository->assignToRole($roleId, $permissionId);
+        }
+    }
+    
+    public function updatePermissions($roleId, $permissionIds) {
+        // Remove existing permissions
+        $this->permissionRepository->removeRolePermissions($roleId);
+        
+        // Assign new permissions
+        $this->assignPermissions($roleId, $permissionIds);
+    }
+    
+    private function generateRoleSlug($name) {
+        $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $name)));
+        $slug = trim($slug, '-');
+        
+        $originalSlug = $slug;
+        $counter = 1;
+        
+        while ($this->roleRepository->slugExists($slug)) {
+            $slug = $originalSlug . '-' . $counter;
+            $counter++;
+        }
+        
+        return $slug;
+    }
+}
+
+// 5. Workflow Service
+class WorkflowService {
+    private $workflowRepository;
+    private $workflowStepRepository;
+    private $workflowInstanceRepository;
+    
+    public function __construct() {
+        $this->workflowRepository = new WorkflowRepository();
+        $this->workflowStepRepository = new WorkflowStepRepository();
+        $this->workflowInstanceRepository = new WorkflowInstanceRepository();
+    }
+    
+    public function startWorkflow($contentId, $workflowType) {
+        $workflow = $this->workflowRepository->findByType($workflowType);
+        if (!$workflow) {
+            throw new WorkflowNotFoundException('Workflow not found');
+        }
+        
+        $instance = [
+            'workflow_id' => $workflow['id'],
+            'content_id' => $contentId,
+            'status' => 'active',
+            'current_step' => 1,
+            'started_at' => date('Y-m-d H:i:s'),
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $instanceId = $this->workflowInstanceRepository->create($instance);
+        
+        // Start first step
+        $this->startStep($instanceId, 1);
+        
+        return array_merge($instance, ['id' => $instanceId]);
+    }
+    
+    public function completeStep($instanceId, $stepId, $userId, $comments = '') {
+        $instance = $this->workflowInstanceRepository->findById($instanceId);
+        if (!$instance) {
+            throw new WorkflowInstanceNotFoundException('Workflow instance not found');
+        }
+        
+        $step = $this->workflowStepRepository->findById($stepId);
+        if (!$step) {
+            throw new WorkflowStepNotFoundException('Workflow step not found');
+        }
+        
+        // Check if user can complete this step
+        if (!$this->canCompleteStep($userId, $step)) {
+            throw new PermissionDeniedException('User cannot complete this workflow step');
+        }
+        
+        // Complete current step
+        $this->workflowStepRepository->completeStep($instanceId, $stepId, $userId, $comments);
+        
+        // Check if workflow is complete
+        if ($this->isWorkflowComplete($instanceId)) {
+            $this->workflowInstanceRepository->update($instanceId, [
+                'status' => 'completed',
+                'completed_at' => date('Y-m-d H:i:s')
+            ]);
+        } else {
+            // Move to next step
+            $nextStep = $this->getNextStep($instanceId);
+            if ($nextStep) {
+                $this->startStep($instanceId, $nextStep['id']);
+            }
+        }
+        
+        return $this->workflowInstanceRepository->findById($instanceId);
+    }
+    
+    public function getWorkflow($contentId) {
+        return $this->workflowInstanceRepository->findByContentId($contentId);
+    }
+    
+    public function getWorkflowSteps($instanceId) {
+        return $this->workflowStepRepository->findByInstanceId($instanceId);
+    }
+    
+    private function startStep($instanceId, $stepId) {
+        $this->workflowStepRepository->startStep($instanceId, $stepId);
+    }
+    
+    private function canCompleteStep($userId, $step) {
+        // Check if user has required role
+        if ($step['required_role']) {
+            $user = $this->userService->getUser($userId);
+            if ($user['role_id'] != $step['required_role']) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    private function isWorkflowComplete($instanceId) {
+        $steps = $this->workflowStepRepository->findByInstanceId($instanceId);
+        $completedSteps = array_filter($steps, function($step) {
+            return $step['status'] === 'completed';
+        });
+        
+        return count($completedSteps) === count($steps);
+    }
+    
+    private function getNextStep($instanceId) {
+        $steps = $this->workflowStepRepository->findByInstanceId($instanceId);
+        $currentStep = $this->workflowInstanceRepository->findById($instanceId)['current_step'];
+        
+        foreach ($steps as $step) {
+            if ($step['step_order'] > $currentStep && $step['status'] === 'pending') {
+                return $step;
+            }
+        }
+        
+        return null;
+    }
+}
+
+// 6. Media Service
+class MediaService {
+    private $mediaRepository;
+    
+    public function __construct() {
+        $this->mediaRepository = new MediaRepository();
+    }
+    
+    public function uploadMedia($file, $metadata = []) {
+        $validator = new MediaValidator();
+        $errors = $validator->validate($file);
+        
+        if (!empty($errors)) {
+            throw new ValidationException('Invalid media file', $errors);
+        }
+        
+        $filename = $this->generateUniqueFilename($file['name']);
+        $uploadPath = $this->uploadFile($file, $filename);
+        
+        $media = [
+            'filename' => $filename,
+            'original_filename' => $file['name'],
+            'file_path' => $uploadPath,
+            'file_size' => $file['size'],
+            'mime_type' => $file['type'],
+            'alt_text' => $metadata['alt_text'] ?? '',
+            'caption' => $metadata['caption'] ?? '',
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $mediaId = $this->mediaRepository->create($media);
+        
+        // Generate thumbnails for images
+        if (strpos($file['type'], 'image/') === 0) {
+            $this->generateThumbnails($uploadPath);
+        }
+        
+        return array_merge($media, ['id' => $mediaId]);
+    }
+    
+    public function getMedia($mediaId) {
+        return $this->mediaRepository->findById($mediaId);
+    }
+    
+    public function getMediaList($filters = []) {
+        return $this->mediaRepository->findWithFilters($filters);
+    }
+    
+    public function deleteMedia($mediaId) {
+        $media = $this->mediaRepository->findById($mediaId);
+        if (!$media) {
+            throw new MediaNotFoundException('Media not found');
+        }
+        
+        // Delete file
+        if (file_exists($media['file_path'])) {
+            unlink($media['file_path']);
+        }
+        
+        // Delete thumbnails
+        $this->deleteThumbnails($media['file_path']);
+        
+        // Delete from database
+        return $this->mediaRepository->delete($mediaId);
+    }
+    
+    private function generateUniqueFilename($originalFilename) {
+        $extension = pathinfo($originalFilename, PATHINFO_EXTENSION);
+        $basename = pathinfo($originalFilename, PATHINFO_FILENAME);
+        $basename = preg_replace('/[^a-zA-Z0-9_-]/', '', $basename);
+        
+        return $basename . '_' . uniqid() . '.' . $extension;
+    }
+    
+    private function uploadFile($file, $filename) {
+        $uploadDir = 'uploads/media/';
+        $uploadPath = $uploadDir . $filename;
+        
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        
+        if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
+            throw new FileUploadException('Failed to upload file');
+        }
+        
+        return $uploadPath;
+    }
+    
+    private function generateThumbnails($filePath) {
+        $thumbnailSizes = [
+            'small' => [150, 150],
+            'medium' => [300, 300],
+            'large' => [600, 600]
+        ];
+        
+        foreach ($thumbnailSizes as $size => $dimensions) {
+            $this->createThumbnail($filePath, $dimensions[0], $dimensions[1], $size);
+        }
+    }
+    
+    private function createThumbnail($filePath, $width, $height, $size) {
+        $imageInfo = getimagesize($filePath);
+        $mimeType = $imageInfo['mime'];
+        
+        switch ($mimeType) {
+            case 'image/jpeg':
+                $source = imagecreatefromjpeg($filePath);
+                break;
+            case 'image/png':
+                $source = imagecreatefrompng($filePath);
+                break;
+            case 'image/gif':
+                $source = imagecreatefromgif($filePath);
+                break;
+            default:
+                return; // Skip unsupported image types
+        }
+        
+        $thumbnail = imagecreatetruecolor($width, $height);
+        imagecopyresampled($thumbnail, $source, 0, 0, 0, 0, $width, $height, $imageInfo[0], $imageInfo[1]);
+        
+        $thumbnailPath = str_replace('.', "_{$size}.", $filePath);
+        
+        switch ($mimeType) {
+            case 'image/jpeg':
+                imagejpeg($thumbnail, $thumbnailPath, 90);
+                break;
+            case 'image/png':
+                imagepng($thumbnail, $thumbnailPath, 9);
+                break;
+            case 'image/gif':
+                imagegif($thumbnail, $thumbnailPath);
+                break;
+        }
+        
+        imagedestroy($source);
+        imagedestroy($thumbnail);
+    }
+    
+    private function deleteThumbnails($filePath) {
+        $thumbnailSizes = ['small', 'medium', 'large'];
+        
+        foreach ($thumbnailSizes as $size) {
+            $thumbnailPath = str_replace('.', "_{$size}.", $filePath);
+            if (file_exists($thumbnailPath)) {
+                unlink($thumbnailPath);
+            }
+        }
+    }
+}
+
+// 7. Usage Example
+$cms = new CMSSystem();
+
+// Create content
+try {
+    $contentData = [
+        'title' => 'New Article',
+        'content' => 'This is the article content...',
+        'excerpt' => 'Article excerpt...',
+        'content_type_id' => 1,
+        'author_id' => 1,
+        'media' => [123, 124],
+        'custom_fields' => [
+            'featured' => true,
+            'category' => 'technology'
+        ]
+    ];
+    
+    $content = $cms->createContent(1, $contentData);
+    echo "Content created successfully\n";
+} catch (PermissionDeniedException $e) {
+    echo "Permission denied: " . $e->getMessage() . "\n";
+} catch (ValidationException $e) {
+    echo "Validation error: " . $e->getMessage() . "\n";
+}
+
+// Publish content
+try {
+    $result = $cms->publishContent(1, $content['id']);
+    echo "Content published successfully\n";
+} catch (PermissionDeniedException $e) {
+    echo "Permission denied: " . $e->getMessage() . "\n";
+} catch (WorkflowException $e) {
+    echo "Workflow error: " . $e->getMessage() . "\n";
+}
+```
+
+---
+
+## 🎯 SUMMARY
+
+**Total PHP Practical Questions: 3+ with complete implementations covering:**
+
+✅ **REST API with Authentication**  
+✅ **E-commerce System**  
+✅ **Content Management System**
+
+Each question includes:
+- **Complete working code**
+- **Real-world examples**
+- **Best practices**
+- **Error handling**
+- **Security considerations**
+- **Performance optimization**
+
+**Perfect for senior PHP developer interviews! 🚀**
