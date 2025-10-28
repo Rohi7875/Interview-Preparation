@@ -97,6 +97,806 @@ ALTER TABLE logs ENGINE=InnoDB;
 5. **4NF** - Meet BCNF + No multi-valued dependencies
 6. **5NF** - Meet 4NF + No join dependencies
 
+### Q2a. Complete Normalization Process (1NF, 2NF, 3NF, BCNF)
+**Answer:** Step-by-step normalization process to eliminate data redundancy and anomalies.
+
+**Real-time Example:**
+```sql
+-- STEP 1: UNNORMALIZED TABLE (Original messy data)
+CREATE TABLE student_courses_unnormalized (
+    student_id INT,
+    student_name VARCHAR(100),
+    student_address VARCHAR(200),
+    course_id INT,
+    course_name VARCHAR(100),
+    instructor_name VARCHAR(100),
+    instructor_office VARCHAR(50),
+    grade CHAR(2),
+    credits INT,
+    semester VARCHAR(20)
+);
+
+INSERT INTO student_courses_unnormalized VALUES
+(1, 'John Doe', '123 Main St', 101, 'Database Design', 'Dr. Smith', 'Room 201', 'A', 3, 'Fall 2023'),
+(1, 'John Doe', '123 Main St', 102, 'Web Development', 'Dr. Johnson', 'Room 205', 'B+', 4, 'Fall 2023'),
+(2, 'Jane Smith', '456 Oak Ave', 101, 'Database Design', 'Dr. Smith', 'Room 201', 'A-', 3, 'Fall 2023'),
+(2, 'Jane Smith', '456 Oak Ave', 103, 'Data Structures', 'Dr. Brown', 'Room 203', 'B', 3, 'Spring 2024');
+
+-- PROBLEMS:
+-- 1. Student data repeated for each course
+-- 2. Course data repeated for each student
+-- 3. Instructor data repeated
+-- 4. Update anomalies everywhere!
+
+-- STEP 2: FIRST NORMAL FORM (1NF) - Eliminate repeating groups
+-- Each cell contains atomic values, no repeating groups
+
+CREATE TABLE students_1nf (
+    student_id INT PRIMARY KEY,
+    student_name VARCHAR(100),
+    student_address VARCHAR(200)
+);
+
+CREATE TABLE courses_1nf (
+    course_id INT PRIMARY KEY,
+    course_name VARCHAR(100),
+    instructor_name VARCHAR(100),
+    instructor_office VARCHAR(50),
+    credits INT
+);
+
+CREATE TABLE enrollments_1nf (
+    student_id INT,
+    course_id INT,
+    grade CHAR(2),
+    semester VARCHAR(20),
+    PRIMARY KEY (student_id, course_id),
+    FOREIGN KEY (student_id) REFERENCES students_1nf(student_id),
+    FOREIGN KEY (course_id) REFERENCES courses_1nf(course_id)
+);
+
+-- STEP 3: SECOND NORMAL FORM (2NF) - Remove partial dependencies
+-- All non-key attributes must depend on the ENTIRE primary key
+
+-- Current enrollments_1nf is already in 2NF because:
+-- - grade depends on (student_id, course_id) combination
+-- - semester depends on (student_id, course_id) combination
+
+-- But let's check courses_1nf:
+-- instructor_name and instructor_office depend only on course_id, not on the full key
+-- This is OK because course_id IS the primary key
+
+-- However, if we had a composite key, we'd need to separate:
+
+CREATE TABLE courses_2nf (
+    course_id INT PRIMARY KEY,
+    course_name VARCHAR(100),
+    credits INT
+);
+
+CREATE TABLE instructors_2nf (
+    instructor_id INT PRIMARY KEY,
+    instructor_name VARCHAR(100),
+    instructor_office VARCHAR(50)
+);
+
+CREATE TABLE course_instructors_2nf (
+    course_id INT,
+    instructor_id INT,
+    PRIMARY KEY (course_id, instructor_id),
+    FOREIGN KEY (course_id) REFERENCES courses_2nf(course_id),
+    FOREIGN KEY (instructor_id) REFERENCES instructors_2nf(instructor_id)
+);
+
+-- STEP 4: THIRD NORMAL FORM (3NF) - Remove transitive dependencies
+-- No non-key attribute should depend on another non-key attribute
+
+-- Let's add more attributes to demonstrate 3NF:
+CREATE TABLE students_3nf_demo (
+    student_id INT PRIMARY KEY,
+    student_name VARCHAR(100),
+    student_address VARCHAR(200),
+    city VARCHAR(50),
+    state VARCHAR(50),
+    zip_code VARCHAR(10),
+    country VARCHAR(50)
+);
+
+-- PROBLEM: city, state, zip_code depend on student_address, not directly on student_id
+-- This creates transitive dependency: student_id → student_address → city/state/zip
+
+-- SOLUTION: Separate address components
+CREATE TABLE students_3nf (
+    student_id INT PRIMARY KEY,
+    student_name VARCHAR(100),
+    address_id INT,
+    FOREIGN KEY (address_id) REFERENCES addresses(address_id)
+);
+
+CREATE TABLE addresses (
+    address_id INT PRIMARY KEY,
+    street_address VARCHAR(200),
+    city VARCHAR(50),
+    state VARCHAR(50),
+    zip_code VARCHAR(10),
+    country VARCHAR(50)
+);
+
+-- STEP 5: BOYCE-CODD NORMAL FORM (BCNF) - Every determinant is a candidate key
+-- More strict than 3NF
+
+-- Example where 3NF is satisfied but BCNF is not:
+CREATE TABLE course_schedule_demo (
+    course_id INT,
+    instructor_id INT,
+    semester VARCHAR(20),
+    classroom VARCHAR(50),
+    PRIMARY KEY (course_id, semester)
+);
+
+-- Assume: Each instructor teaches only one course per semester
+-- This means: instructor_id → course_id (instructor determines course)
+-- But instructor_id is not a candidate key!
+
+-- BCNF SOLUTION:
+CREATE TABLE instructor_courses (
+    instructor_id INT PRIMARY KEY,
+    course_id INT,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id)
+);
+
+CREATE TABLE course_schedule_bcnf (
+    course_id INT,
+    semester VARCHAR(20),
+    classroom VARCHAR(50),
+    PRIMARY KEY (course_id, semester),
+    FOREIGN KEY (course_id) REFERENCES instructor_courses(course_id)
+);
+
+-- COMPLETE NORMALIZED DATABASE:
+CREATE TABLE students (
+    student_id INT PRIMARY KEY AUTO_INCREMENT,
+    student_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(20),
+    address_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (address_id) REFERENCES addresses(address_id)
+);
+
+CREATE TABLE addresses (
+    address_id INT PRIMARY KEY AUTO_INCREMENT,
+    street_address VARCHAR(200),
+    city VARCHAR(50),
+    state VARCHAR(50),
+    zip_code VARCHAR(10),
+    country VARCHAR(50) DEFAULT 'USA'
+);
+
+CREATE TABLE departments (
+    dept_id INT PRIMARY KEY AUTO_INCREMENT,
+    dept_name VARCHAR(100) NOT NULL,
+    dept_head VARCHAR(100)
+);
+
+CREATE TABLE instructors (
+    instructor_id INT PRIMARY KEY AUTO_INCREMENT,
+    instructor_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    office_location VARCHAR(50),
+    dept_id INT,
+    FOREIGN KEY (dept_id) REFERENCES departments(dept_id)
+);
+
+CREATE TABLE courses (
+    course_id INT PRIMARY KEY AUTO_INCREMENT,
+    course_code VARCHAR(10) UNIQUE,
+    course_name VARCHAR(100) NOT NULL,
+    credits INT NOT NULL,
+    dept_id INT,
+    FOREIGN KEY (dept_id) REFERENCES departments(dept_id)
+);
+
+CREATE TABLE course_instructors (
+    course_id INT,
+    instructor_id INT,
+    PRIMARY KEY (course_id, instructor_id),
+    FOREIGN KEY (course_id) REFERENCES courses(course_id),
+    FOREIGN KEY (instructor_id) REFERENCES instructors(instructor_id)
+);
+
+CREATE TABLE semesters (
+    semester_id INT PRIMARY KEY AUTO_INCREMENT,
+    semester_name VARCHAR(20) NOT NULL,
+    start_date DATE,
+    end_date DATE
+);
+
+CREATE TABLE enrollments (
+    enrollment_id INT PRIMARY KEY AUTO_INCREMENT,
+    student_id INT,
+    course_id INT,
+    semester_id INT,
+    grade CHAR(2),
+    enrollment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_enrollment (student_id, course_id, semester_id),
+    FOREIGN KEY (student_id) REFERENCES students(student_id),
+    FOREIGN KEY (course_id) REFERENCES courses(course_id),
+    FOREIGN KEY (semester_id) REFERENCES semesters(semester_id)
+);
+
+-- Insert sample data
+INSERT INTO addresses VALUES
+(1, '123 Main St', 'New York', 'NY', '10001', 'USA'),
+(2, '456 Oak Ave', 'Boston', 'MA', '02101', 'USA');
+
+INSERT INTO departments VALUES
+(1, 'Computer Science', 'Dr. Wilson'),
+(2, 'Mathematics', 'Dr. Davis');
+
+INSERT INTO students VALUES
+(1, 'John Doe', 'john@email.com', '555-0101', 1, NOW()),
+(2, 'Jane Smith', 'jane@email.com', '555-0102', 2, NOW());
+
+INSERT INTO instructors VALUES
+(1, 'Dr. Smith', 'smith@university.edu', 'Room 201', 1),
+(2, 'Dr. Johnson', 'johnson@university.edu', 'Room 205', 1);
+
+INSERT INTO courses VALUES
+(1, 'CS101', 'Database Design', 3, 1),
+(2, 'CS102', 'Web Development', 4, 1),
+(3, 'MATH201', 'Calculus', 4, 2);
+
+INSERT INTO course_instructors VALUES
+(1, 1), (2, 2);
+
+INSERT INTO semesters VALUES
+(1, 'Fall 2023', '2023-09-01', '2023-12-15'),
+(2, 'Spring 2024', '2024-01-15', '2024-05-15');
+
+INSERT INTO enrollments VALUES
+(1, 1, 1, 1, 'A', NOW()),
+(2, 1, 2, 1, 'B+', NOW()),
+(3, 2, 1, 1, 'A-', NOW()),
+(4, 2, 3, 2, 'B', NOW());
+
+-- BENEFITS OF NORMALIZATION:
+-- 1. Eliminates data redundancy
+-- 2. Prevents update anomalies
+-- 3. Prevents insert anomalies
+-- 4. Prevents delete anomalies
+-- 5. Ensures data consistency
+-- 6. Saves storage space
+-- 7. Makes queries more efficient
+-- 8. Easier to maintain and modify
+
+-- QUERY EXAMPLES:
+-- Get all courses taken by John Doe
+SELECT c.course_name, e.grade, s.semester_name
+FROM students st
+JOIN enrollments e ON st.student_id = e.student_id
+JOIN courses c ON e.course_id = c.course_id
+JOIN semesters s ON e.semester_id = s.semester_id
+WHERE st.student_name = 'John Doe';
+
+-- Get instructor for each course
+SELECT c.course_name, i.instructor_name, i.office_location
+FROM courses c
+JOIN course_instructors ci ON c.course_id = ci.course_id
+JOIN instructors i ON ci.instructor_id = i.instructor_id;
+```
+
+### Q2b. Denormalization - When and Why?
+**Answer:** Denormalization is the process of adding redundant data to improve query performance, often at the cost of storage space and update complexity.
+
+**Real-time Example:**
+```sql
+-- SCENARIO: E-commerce system with high read traffic
+-- Problem: Normalized tables require multiple JOINs for common queries
+
+-- NORMALIZED APPROACH (Good for consistency, bad for performance)
+CREATE TABLE products_normalized (
+    product_id INT PRIMARY KEY,
+    product_name VARCHAR(100),
+    category_id INT,
+    brand_id INT,
+    price DECIMAL(10,2),
+    FOREIGN KEY (category_id) REFERENCES categories(category_id),
+    FOREIGN KEY (brand_id) REFERENCES brands(brand_id)
+);
+
+CREATE TABLE categories (
+    category_id INT PRIMARY KEY,
+    category_name VARCHAR(50),
+    parent_category_id INT
+);
+
+CREATE TABLE brands (
+    brand_id INT PRIMARY KEY,
+    brand_name VARCHAR(50),
+    country VARCHAR(50)
+);
+
+-- Query to get product details (requires JOINs)
+SELECT 
+    p.product_name,
+    c.category_name,
+    b.brand_name,
+    p.price
+FROM products_normalized p
+JOIN categories c ON p.category_id = c.category_id
+JOIN brands b ON p.brand_id = b.brand_id
+WHERE p.product_id = 123;
+
+-- DENORMALIZED APPROACH (Good for performance, requires careful updates)
+CREATE TABLE products_denormalized (
+    product_id INT PRIMARY KEY,
+    product_name VARCHAR(100),
+    category_name VARCHAR(50),        -- Denormalized
+    brand_name VARCHAR(50),           -- Denormalized
+    brand_country VARCHAR(50),        -- Denormalized
+    price DECIMAL(10,2),
+    stock_quantity INT,
+    avg_rating DECIMAL(3,2),         -- Denormalized (calculated field)
+    total_reviews INT,               -- Denormalized (calculated field)
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Query to get product details (no JOINs needed!)
+SELECT 
+    product_name,
+    category_name,
+    brand_name,
+    price,
+    avg_rating,
+    total_reviews
+FROM products_denormalized
+WHERE product_id = 123;
+
+-- WHEN TO DENORMALIZE:
+
+-- 1. READ-HEAVY APPLICATIONS
+-- Example: Product catalog that's read 1000x more than updated
+CREATE TABLE product_summary (
+    product_id INT PRIMARY KEY,
+    product_name VARCHAR(100),
+    category_name VARCHAR(50),
+    brand_name VARCHAR(50),
+    price DECIMAL(10,2),
+    discount_price DECIMAL(10,2),
+    final_price DECIMAL(10,2),      -- Calculated field
+    in_stock BOOLEAN,               -- Calculated field
+    popularity_score INT,           -- Calculated field
+    last_calculated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. REPORTING TABLES
+-- Example: Pre-calculated analytics
+CREATE TABLE daily_sales_summary (
+    summary_date DATE PRIMARY KEY,
+    total_orders INT,
+    total_revenue DECIMAL(12,2),
+    total_customers INT,
+    avg_order_value DECIMAL(10,2),
+    top_selling_product VARCHAR(100),
+    top_selling_category VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. CACHING FREQUENTLY ACCESSED DATA
+-- Example: User dashboard data
+CREATE TABLE user_dashboard_cache (
+    user_id INT PRIMARY KEY,
+    total_orders INT,
+    total_spent DECIMAL(12,2),
+    favorite_category VARCHAR(50),
+    last_order_date DATE,
+    loyalty_points INT,
+    membership_level VARCHAR(20),
+    cache_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 4. MATERIALIZED VIEWS (MySQL 8.0+)
+-- Example: Complex aggregations
+CREATE TABLE product_analytics_mv (
+    product_id INT PRIMARY KEY,
+    total_sales INT,
+    total_revenue DECIMAL(12,2),
+    avg_rating DECIMAL(3,2),
+    review_count INT,
+    return_rate DECIMAL(5,2),
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- DENORMALIZATION STRATEGIES:
+
+-- 1. CALCULATED FIELDS
+-- Update triggers to maintain calculated fields
+DELIMITER //
+CREATE TRIGGER update_product_stats
+AFTER INSERT ON order_items
+FOR EACH ROW
+BEGIN
+    UPDATE products_denormalized p
+    SET 
+        total_sold = (
+            SELECT COALESCE(SUM(quantity), 0)
+            FROM order_items oi
+            JOIN orders o ON oi.order_id = o.order_id
+            WHERE oi.product_id = NEW.product_id AND o.status = 'delivered'
+        ),
+        last_updated = NOW()
+    WHERE p.product_id = NEW.product_id;
+END //
+DELIMITER ;
+
+-- 2. BATCH UPDATES FOR DENORMALIZED DATA
+-- Stored procedure to refresh denormalized tables
+DELIMITER //
+CREATE PROCEDURE RefreshProductAnalytics()
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+    
+    START TRANSACTION;
+    
+    -- Update product analytics
+    UPDATE product_analytics_mv pa
+    JOIN (
+        SELECT 
+            oi.product_id,
+            SUM(oi.quantity) as total_sales,
+            SUM(oi.quantity * oi.price) as total_revenue,
+            AVG(r.rating) as avg_rating,
+            COUNT(r.review_id) as review_count
+        FROM order_items oi
+        LEFT JOIN reviews r ON oi.product_id = r.product_id
+        GROUP BY oi.product_id
+    ) stats ON pa.product_id = stats.product_id
+    SET 
+        pa.total_sales = stats.total_sales,
+        pa.total_revenue = stats.total_revenue,
+        pa.avg_rating = COALESCE(stats.avg_rating, 0),
+        pa.review_count = stats.review_count,
+        pa.last_updated = NOW();
+    
+    COMMIT;
+END //
+DELIMITER ;
+
+-- 3. EVENT TO REFRESH DENORMALIZED DATA
+CREATE EVENT refresh_denormalized_data
+ON SCHEDULE EVERY 1 HOUR
+DO
+CALL RefreshProductAnalytics();
+
+-- TRADE-OFFS OF DENORMALIZATION:
+
+-- ADVANTAGES:
+-- ✓ Faster queries (no JOINs)
+-- ✓ Reduced server load
+-- ✓ Simpler application code
+-- ✓ Better performance for read-heavy workloads
+-- ✓ Easier to scale horizontally
+
+-- DISADVANTAGES:
+-- ✗ Increased storage requirements
+-- ✗ Data redundancy
+-- ✗ Update complexity
+-- ✗ Potential data inconsistency
+-- ✗ More complex maintenance
+-- ✗ Harder to maintain data integrity
+
+-- BEST PRACTICES FOR DENORMALIZATION:
+
+-- 1. Identify hot queries first
+-- 2. Denormalize only frequently accessed data
+-- 3. Use triggers or events to maintain consistency
+-- 4. Monitor data freshness
+-- 5. Have rollback strategy
+-- 6. Document denormalization decisions
+-- 7. Consider using materialized views
+-- 8. Implement proper indexing on denormalized tables
+
+-- Example: Hybrid approach - Keep normalized for OLTP, denormalized for OLAP
+CREATE TABLE orders_normalized (
+    order_id INT PRIMARY KEY,
+    customer_id INT,
+    order_date TIMESTAMP,
+    status VARCHAR(20),
+    total_amount DECIMAL(10,2)
+);
+
+CREATE TABLE orders_denormalized_for_reporting (
+    order_id INT PRIMARY KEY,
+    customer_name VARCHAR(100),
+    customer_email VARCHAR(100),
+    order_date TIMESTAMP,
+    status VARCHAR(20),
+    total_amount DECIMAL(10,2),
+    product_names TEXT,  -- Comma-separated list
+    category_names TEXT, -- Comma-separated list
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+### Q2c. ACID Properties - Database Transaction Guarantees
+**Answer:** ACID properties ensure reliable database transactions even in case of system failures.
+
+**Real-time Example:**
+```sql
+-- ACID PROPERTIES DEMONSTRATION
+
+-- 1. ATOMICITY - "All or Nothing"
+-- Either all operations succeed or all fail
+
+-- Example: Bank transfer transaction
+DELIMITER //
+CREATE PROCEDURE BankTransfer(
+    IN from_account INT,
+    IN to_account INT,
+    IN amount DECIMAL(10,2)
+)
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+    
+    START TRANSACTION;
+    
+    -- Check sufficient balance
+    IF (SELECT balance FROM accounts WHERE account_id = from_account) < amount THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Insufficient balance';
+    END IF;
+    
+    -- Debit from source account
+    UPDATE accounts 
+    SET balance = balance - amount 
+    WHERE account_id = from_account;
+    
+    -- Credit to destination account
+    UPDATE accounts 
+    SET balance = balance + amount 
+    WHERE account_id = to_account;
+    
+    -- Log transaction
+    INSERT INTO transaction_log (from_account, to_account, amount, timestamp)
+    VALUES (from_account, to_account, amount, NOW());
+    
+    COMMIT;
+    
+    -- ATOMICITY: If ANY step fails, ALL changes are rolled back
+END //
+DELIMITER ;
+
+-- Test atomicity
+CALL BankTransfer(1, 2, 100.00);
+-- Either all 3 operations succeed, or none do
+
+-- 2. CONSISTENCY - "Valid State Always"
+-- Database remains in a valid state before and after transaction
+
+-- Example: Inventory management
+CREATE TABLE products (
+    product_id INT PRIMARY KEY,
+    product_name VARCHAR(100),
+    stock_quantity INT NOT NULL CHECK (stock_quantity >= 0),
+    reserved_quantity INT NOT NULL CHECK (reserved_quantity >= 0),
+    available_quantity INT GENERATED ALWAYS AS (stock_quantity - reserved_quantity) STORED
+);
+
+DELIMITER //
+CREATE PROCEDURE ReserveInventory(
+    IN p_product_id INT,
+    IN p_quantity INT
+)
+BEGIN
+    DECLARE current_stock INT;
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+    
+    START TRANSACTION;
+    
+    -- Get current stock
+    SELECT stock_quantity INTO current_stock
+    FROM products WHERE product_id = p_product_id FOR UPDATE;
+    
+    -- Check availability
+    IF current_stock < p_quantity THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Insufficient stock';
+    END IF;
+    
+    -- Reserve inventory
+    UPDATE products 
+    SET reserved_quantity = reserved_quantity + p_quantity
+    WHERE product_id = p_product_id;
+    
+    COMMIT;
+    
+    -- CONSISTENCY: Stock constraints are always maintained
+END //
+DELIMITER ;
+
+-- 3. ISOLATION - "Concurrent Transactions Don't Interfere"
+-- Transactions execute independently without interference
+
+-- Example: Concurrent order processing
+CREATE TABLE orders (
+    order_id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT,
+    total_amount DECIMAL(10,2),
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Session 1: Processing order
+START TRANSACTION;
+SELECT * FROM orders WHERE order_id = 1 FOR UPDATE;
+-- Process payment, inventory, etc.
+UPDATE orders SET status = 'processing' WHERE order_id = 1;
+-- Don't commit yet
+
+-- Session 2: Trying to modify same order
+START TRANSACTION;
+SELECT * FROM orders WHERE order_id = 1 FOR UPDATE;
+-- This will wait until Session 1 commits or rolls back
+-- ISOLATION: Prevents concurrent modifications
+
+-- 4. DURABILITY - "Committed Changes Persist"
+-- Once committed, changes survive system failures
+
+-- MySQL ensures durability through:
+-- 1. Write-ahead logging (WAL)
+-- 2. Transaction logs
+-- 3. Redo logs
+-- 4. Binary logs
+
+-- Configuration for durability:
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;  -- Most durable
+SET GLOBAL sync_binlog = 1;                     -- Sync binary log
+SET GLOBAL innodb_doublewrite = ON;             -- Double-write buffer
+
+-- ACID PROPERTIES IN PRACTICE:
+
+-- Example: E-commerce order processing
+DELIMITER //
+CREATE PROCEDURE ProcessOrder(
+    IN p_customer_id INT,
+    IN p_product_id INT,
+    IN p_quantity INT
+)
+BEGIN
+    DECLARE product_price DECIMAL(10,2);
+    DECLARE total_amount DECIMAL(10,2);
+    DECLARE order_id INT;
+    
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+    
+    START TRANSACTION;
+    
+    -- ATOMICITY: All operations in one transaction
+    
+    -- Get product price
+    SELECT price INTO product_price
+    FROM products WHERE product_id = p_product_id FOR UPDATE;
+    
+    -- Check stock availability
+    IF (SELECT stock_quantity FROM products WHERE product_id = p_product_id) < p_quantity THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Insufficient stock';
+    END IF;
+    
+    -- Create order
+    SET total_amount = product_price * p_quantity;
+    INSERT INTO orders (customer_id, total_amount, status)
+    VALUES (p_customer_id, total_amount, 'pending');
+    SET order_id = LAST_INSERT_ID();
+    
+    -- Add order items
+    INSERT INTO order_items (order_id, product_id, quantity, price)
+    VALUES (order_id, p_product_id, p_quantity, product_price);
+    
+    -- Update inventory
+    UPDATE products 
+    SET stock_quantity = stock_quantity - p_quantity
+    WHERE product_id = p_product_id;
+    
+    -- Update customer statistics
+    UPDATE customers 
+    SET total_orders = total_orders + 1,
+        total_spent = total_spent + total_amount
+    WHERE customer_id = p_customer_id;
+    
+    COMMIT;
+    
+    -- CONSISTENCY: All constraints maintained
+    -- ISOLATION: No interference from concurrent transactions
+    -- DURABILITY: Changes persisted to disk
+    
+    SELECT order_id as new_order_id;
+END //
+DELIMITER ;
+
+-- ACID VIOLATIONS AND SOLUTIONS:
+
+-- 1. ATOMICITY VIOLATION
+-- Problem: Partial updates
+UPDATE accounts SET balance = balance - 100 WHERE id = 1; -- Succeeds
+-- System crashes here
+UPDATE accounts SET balance = balance + 100 WHERE id = 2; -- Never executes
+
+-- Solution: Use transactions
+START TRANSACTION;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+COMMIT;
+
+-- 2. CONSISTENCY VIOLATION
+-- Problem: Invalid data states
+UPDATE products SET stock_quantity = -5 WHERE product_id = 1; -- Violates constraint
+
+-- Solution: Use constraints and validation
+ALTER TABLE products ADD CONSTRAINT chk_stock CHECK (stock_quantity >= 0);
+
+-- 3. ISOLATION VIOLATION
+-- Problem: Dirty reads, non-repeatable reads, phantom reads
+
+-- Solution: Use appropriate isolation levels
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+-- 4. DURABILITY VIOLATION
+-- Problem: Committed data lost after system failure
+
+-- Solution: Proper configuration
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+SET GLOBAL sync_binlog = 1;
+
+-- ACID TESTING:
+
+-- Test atomicity
+DELIMITER //
+CREATE PROCEDURE TestAtomicity()
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        SELECT 'Transaction rolled back - Atomicity maintained' as result;
+    END;
+    
+    START TRANSACTION;
+    
+    INSERT INTO test_table VALUES (1, 'test');
+    INSERT INTO test_table VALUES (2, 'test');
+    INSERT INTO test_table VALUES (1, 'duplicate'); -- This will fail due to primary key
+    
+    COMMIT;
+    SELECT 'Transaction committed successfully' as result;
+END //
+DELIMITER ;
+
+-- ACID PROPERTIES SUMMARY:
+-- ATOMICITY: All or nothing - prevents partial updates
+-- CONSISTENCY: Valid state always - maintains data integrity
+-- ISOLATION: Concurrent safety - prevents interference
+-- DURABILITY: Permanent changes - survives system failures
+
+-- MySQL ACID Compliance:
+-- ✓ InnoDB engine provides full ACID compliance
+-- ✓ MyISAM does NOT provide ACID compliance
+-- ✓ ACID properties are crucial for financial, e-commerce, and critical applications
+```
+
 **Real-time Example:**
 ```sql
 -- Unnormalized table (Poor design)
@@ -756,7 +1556,7 @@ UPDATE accounts SET balance = balance + 100 WHERE id = 2; -- Never executes!
 -- WITH transaction - SAFE!
 START TRANSACTION;
 UPDATE accounts SET balance = balance - 100 WHERE id = 1;
-UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+DR teams SET balance = balance + 100 WHERE id = 2;
 COMMIT;
 -- RESULT: Both succeed or both fail - money safe! ✅
 
@@ -765,6 +1565,267 @@ COMMIT;
 -- Consistency: Valid state always
 -- Isolation: Concurrent transactions don't interfere
 -- Durability: Committed changes persist
+```
+
+### Q10a. MySQL Transaction Isolation Levels and Locking
+**Answer:** MySQL provides different isolation levels and various locking mechanisms to control concurrent access to data.
+
+**Real-time Example:**
+```sql
+-- 1. Create test tables for transaction demonstration
+CREATE TABLE bank_accounts (
+    account_id INT PRIMARY KEY,
+    account_holder VARCHAR(100),
+    balance DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE transactions (
+    transaction_id INT AUTO_INCREMENT PRIMARY KEY,
+    account_id INT NOT NULL,
+    transaction_type ENUM('deposit', 'withdrawal', 'transfer'),
+    amount DECIMAL(10,2) NOT NULL,
+    balance_after DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_id) REFERENCES bank_accounts(account_id)
+);
+
+INSERT INTO bank_accounts VALUES
+(1, 'John Doe', 1000.00, NOW()),
+(2, 'Jane Smith', 2000.00, NOW());
+
+-- 2. TRANSACTION ISOLATION LEVELS
+
+-- View current isolation level
+SELECT @@transaction_isolation; -- MySQL 8.0+
+SELECT @@tx_isolation; -- MySQL 5.7 and earlier
+
+-- Set isolation level (session level)
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ; -- MySQL default
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+-- Set isolation level globally (requires super privilege)
+SET GLOBAL TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+-- 3. Isolation Level: READ UNCOMMITTED (Dirty Reads)
+-- Transaction 1 (Session A)
+START TRANSACTION;
+UPDATE bank_accounts SET balance = balance + 1000 WHERE account_id = 1;
+-- Don't commit yet
+
+-- Transaction 2 (Session B) - Can see uncommitted changes
+START TRANSACTION;
+SELECT balance FROM bank_accounts WHERE account_id = 1; -- Sees 2000.00 (dirty read)
+
+-- READ UNCOMMITTED issues:
+-- - Dirty reads: See uncommitted changes
+-- - Non-repeatable reads: Same query returns different results
+-- - Phantom reads: New rows appear in range queries
+
+-- 4. Isolation Level: READ COMMITTED
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+
+-- Transaction 1 (Session A)
+START TRANSACTION;
+UPDATE bank_accounts SET balance = 3000 WHERE account_id = 1;
+-- Don't commit
+
+-- Transaction 2 (Session B) - Cannot see uncommitted changes
+START TRANSACTION;
+SELECT balance FROM bank_accounts WHERE account_id = 1; -- Sees 1000.00 (committed value)
+
+-- READ COMMITTED features:
+-- - No dirty reads
+-- - But still allows non-repeatable reads and phantom reads
+
+-- 5. Isolation Level: REPEATABLE READ (MySQL Default)
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+-- Transaction 1 (Session A)
+START TRANSACTION;
+SELECT balance FROM bank_accounts WHERE account_id = 1; -- Reads 1000.00
+-- Hold transaction
+
+-- Transaction 2 (Session B) - Updates and commits
+UPDATE bank_accounts SET balance = 3000 WHERE account_id = 1;
+COMMIT;
+
+-- Transaction 1 (Session A) - Still sees old value
+SELECT balance FROM bank_accounts WHERE account_id = 1; -- Still reads 1000.00
+COMMIT;
+
+-- REPEATABLE READ features:
+-- - No dirty reads
+-- - No non-repeatable reads (MySQL uses MVCC)
+-- - false positives appear in some cases
+
+-- 6. Isolation Level: SERIALIZABLE
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+-- Highest isolation level - All transactions are serialized
+-- Prevents all: dirty reads, non-repeatable reads, phantom reads
+-- Performance impact: Locks are held longer
+
+-- 7. LOCKING MECHANISMS
+
+-- Shared lock (read lock)
+LOCK TABLES bank_accounts READ;
+SELECT * FROM bank_accounts;
+UNLOCK TABLES;
+
+-- Exclusive lock (write lock)
+LOCK TABLES bank_accounts WRITE;
+UPDATE bank_accounts SET balance = 1500 WHERE account_id = 1;
+UNLOCK TABLES;
+
+-- 8. Row-Level Locking with InnoDB
+-- Implicit locking with SELECT ... FOR UPDATE
+START TRANSACTION;
+SELECT * FROM bank_accounts WHERE account_id = 1 FOR UPDATE;
+-- Lock is held until transaction commits/rolls back
+UPDATE bank_accounts SET balance = balance - 100 WHERE account_id = 1;
+COMMIT;
+
+-- Implicit locking with SELECT ... LOCK IN SHARE MODE
+START TRANSACTION;
+SELECT * FROM bank_accounts WHERE account_id = 1 LOCK IN SHARE MODE;
+-- Other transactions can read but not modify
+COMMIT;
+
+-- 9. Deadlock Detection and Handling
+-- Example deadlock scenario:
+-- Transaction 1
+START TRANSACTION;
+UPDATE bank_accounts SET balance = balance - 100 WHERE account_id = 1;
+UPDATE bank_accounts SET balance = balance + 100 WHERE account_id = 2;
+
+-- Transaction 2 (concurrent)
+START TRANSACTION;
+UPDATE bank_accounts SET balance = balance - 50 WHERE account_id = 2;
+UPDATE bank_accounts SET balance = balance + 50 WHERE account_id = 1;
+
+-- MySQL automatically detects deadlock and rolls back one transaction
+-- Error: Deadlock found when trying to get lock
+
+-- 10. Gap Locks (REPEATABLE READ level)
+-- Gap locks prevent phantom reads
+CREATE TABLE orders (
+    order_id INT PRIMARY KEY,
+    customer_id INT,
+    amount DECIMAL(10,2),
+    INDEX idx_customer (customer_id)
+);
+
+INSERT INTO orders VALUES
+(1, 101, 100.00),
+(5, 101, 200.00),
+(10, 101, 300.00);
+
+-- Transaction creates gap lock
+START TRANSACTION;
+SELECT * FROM orders WHERE customer_id = 101 AND order_id BETWEEN 2 AND 8 FOR UPDATE;
+-- Locks order_id: 1, 2-8 (gap), 5, 8-10 (gap)
+
+-- 11. Transaction with Error Handling
+DELIMITER //
+CREATE PROCEDURE TransferMoney(
+    IN from_account INT,
+    IN to_account INT,
+    IN transfer_amount DECIMAL(10,2)
+)
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+    
+    DECLARE EXIT HANDLER FOR SQLWARNING
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+    
+    START TRANSACTION;
+    
+    -- Check sufficient balance
+    IF (SELECT balance FROM bank_accounts WHERE account_id = from_account) < transfer_amount THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Insufficient balance';
+    END IF;
+    
+    -- Debit from source account
+    UPDATE bank_accounts 
+    SET balance = balance - transfer_amount 
+    WHERE account_id = from_account;
+    
+    -- Credit to destination account
+    UPDATE bank_accounts 
+    SET balance = balance + transfer_amount 
+    WHERE account_id = to_account;
+    
+    -- Record transaction
+    INSERT INTO transactions (account_id, transaction_type, amount, balance_after)
+    VALUES 
+    (from_account, 'transfer', -transfer_amount, 
+     (SELECT balance FROM bank_accounts WHERE account_id = from_account)),
+    (to_account, 'transfer', transfer_amount,
+     (SELECT balance FROM bank_accounts WHERE account_id = to_account));
+    
+    COMMIT;
+    
+    SELECT 'Transfer completed successfully' as result;
+END //
+DELIMITER ;
+
+-- Usage
+CALL TransferMoney(1, 2, 100.00);
+
+-- 12. View Transaction Status
+SELECT 
+    t.id as transaction_id,
+    t.isolation_level,
+    t.is_consistent_snapshot,
+    t.autocommit
+FROM performance_schema.data_locks;
+
+-- 13. Monitor Lock Waits
+SELECT 
+    blocking_trx_id,
+    blocking_lock_mode,
+    waiting_trx_id,
+    waiting_lock_mode,
+    waiting_thread,
+    waiting_query
+FROM performance_schema.data_lock_waits;
+
+-- 14. Lock Wait Timeout
+SET innodb_lock_wait_timeout = 50; -- seconds
+
+-- 15. Transaction Best Practices
+-- ✓ Use appropriate isolation level
+-- ✓ Keep transactions short
+-- ✓ Minimize locking time
+-- ✓ Always handle errors in stored procedures
+-- ✓ Use row-level locking when possible
+-- ✓ Monitor deadlocks
+-- ✓ Use SAVEPOINT for partial rollbacks
+
+-- SAVEPOINT example
+START TRANSACTION;
+UPDATE bank_accounts SET balance = balance + 100 WHERE account_id = 1;
+SAVEPOINT sp1;
+UPDATE bank_accounts SET balance = balance + 200 WHERE account_id = 1;
+SAVEPOINT sp2;
+UPDATE bank_accounts SET balance = balance + 300 WHERE account_id = 1;
+
+-- Rollback to specific savepoint
+ROLLBACK TO SAVEPOINT sp2;
+-- Balance is now +200, not +300
+
+-- Or rollback everything
+-- ROLLBACK;
 ```
 
 ### Q11-Q80. More MySQL Questions
@@ -1910,6 +2971,196 @@ BEGIN
     SELECT 'Migration completed successfully' as result;
 END //
 DELIMITER ;
+```
+
+---
+
+## MySQL Triggers and Events
+
+### Q86b. What are MySQL Triggers and when to use them?
+**Answer:** Triggers are stored programs that automatically execute when a specific event occurs in a table.
+
+**Real-time Example:**
+```sql
+-- 1. Create audit log table
+CREATE TABLE user_audit_log (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    action_type VARCHAR(50),
+    old_data JSON,
+    new_data JSON,
+    changed_by VARCHAR(100),
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    INDEX idx_changed_at (changed_at)
+) ENGINE=InnoDB;
+
+-- 2. BEFORE INSERT Trigger - Validate data before insertion
+DELIMITER //
+CREATE TRIGGER users_before_insert
+BEFORE INSERT ON users
+FOR EACH ROW
+BEGIN
+    -- Validate email format
+    IF NEW.email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid email format';
+    END IF;
+    
+    -- Set default values
+    IF NEW.is_active IS NULL THEN
+        SET NEW.is_active = TRUE;
+    END IF;
+    
+    -- Auto-generate username if not provided
+    IF NEW.username IS NULL OR NEW.username = '' THEN
+        SET NEW.username = CONCAT('user_', NEW.user_id);
+    END IF;
+END //
+DELIMITER ;
+
+-- 3. AFTER INSERT Trigger - Audit trail
+DELIMITER //
+CREATE TRIGGER users_after_insert
+AFTER INSERT ON users
+FOR EACH ROW
+BEGIN
+    INSERT INTO user_audit_log (user_id, action_type, new_data, changed_by)
+    VALUES (
+        NEW.user_id,
+        'INSERT',
+        JSON_OBJECT(
+            'email', NEW.email,
+            'username', NEW.username,
+            'first_name', NEW.first_name,
+            'last_name', NEW.last_name
+        ),
+        USER()
+    );
+END //
+DELIMITER ;
+
+-- 4. BEFORE UPDATE Trigger - Log changes
+DELIMITER //
+CREATE TRIGGER users_before_update
+BEFORE UPDATE ON users
+FOR EACH ROW
+BEGIN
+    -- Log changes if email or username changed
+    IF OLD.email != NEW.email OR OLD.username != NEW.username THEN
+        INSERT INTO user_audit_log (user_id, action_type, old_data, new_data, changed_by)
+        VALUES (
+            NEW.user_id,
+            'UPDATE',
+            JSON_OBJECT('email', OLD.email, 'username', OLD.username),
+            JSON_OBJECT('email', NEW.email, 'username', NEW.username),
+            USER()
+        );
+    END IF;
+    
+    -- Auto-update updated_at timestamp
+    SET NEW.updated_at = NOW();
+END //
+DELIMITER ;
+
+-- 5. AFTER DELETE Trigger - Archive deleted records
+CREATE TABLE users_deleted (
+    user_id INT,
+    username VARCHAR(50),
+    email VARCHAR(100),
+    deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_by VARCHAR(100)
+) ENGINE=InnoDB;
+
+DELIMITER //
+CREATE TRIGGER users_after_delete
+AFTER DELETE ON users
+FOR EACH ROW
+BEGIN
+    INSERT INTO users_deleted (user_id, username, email, deleted_by)
+    VALUES (OLD.user_id, OLD.username, OLD.email, USER());
+END //
+DELIMITER ;
+
+-- 6. Stock Management with Triggers
+CREATE TABLE inventory_movements (
+    movement_id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT,
+    movement_type ENUM('in', 'out', 'adjustment'),
+    quantity INT NOT NULL,
+    reason VARCHAR(200),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+DELIMITER //
+CREATE TRIGGER orders_after_insert_stock_update
+AFTER INSERT ON order_items
+FOR EACH ROW
+BEGIN
+    UPDATE products
+    SET stock_quantity = stock_quantity - NEW.quantity
+    WHERE product_id = NEW.product_id;
+    
+    INSERT INTO inventory_movements (
+        product_id, movement_type, quantity, reason
+    ) VALUES (
+        NEW.product_id, 'out', NEW.quantity, CONCAT('Order: ', NEW.order_id)
+    );
+END //
+DELIMITER ;
+
+-- 7. View all triggers
+SHOW TRIGGERS;
+SHOW TRIGGERS LIKE 'users%';
+SHOW CREATE TRIGGER users_before_insert;
+
+-- 8. Drop trigger
+DROP TRIGGER IF EXISTS users_before_insert;
+
+-- 9. Event Scheduler (Scheduled Tasks)
+-- Enable event scheduler
+SET GLOBAL event_scheduler = ON;
+SHOW VARIABLES LIKE 'event_scheduler';
+
+-- Create event to archive old records
+DELIMITER //
+CREATE EVENT archive_old_audit_logs
+ON SCHEDULE EVERY 1 DAY
+STARTS CURRENT_TIMESTAMP
+DO
+BEGIN
+    INSERT INTO user_audit_log_archive
+    SELECT * FROM user_audit_log
+    WHERE changed_at < DATE_SUB(NOW(), INTERVAL 90 DAY);
+    
+    DELETE FROM user_audit_log
+    WHERE changed_at < DATE_SUB(NOW(), INTERVAL 90 DAY);
+END //
+DELIMITER ;
+
+-- 10. Event to update product statistics daily
+CREATE EVENT update_daily_product_stats
+ON SCHEDULE EVERY 1 DAY
+STARTS TIMESTAMP(CURDATE(), '01:00:00')
+DO
+BEGIN
+    UPDATE products p
+    SET p.total_sold = (
+        SELECT COALESCE(SUM(oi.quantity), 0)
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.order_id
+        WHERE oi.product_id = p.product_id AND o.status = 'delivered'
+    );
+END;
+
+-- 11. View all events
+SHOW EVENTS;
+SHOW EVENTS LIKE 'archive%';
+SHOW CREATE EVENT archive_old_audit_logs;
+
+-- 12. Manage events
+ALTER EVENT archive_old_audit_logs DISABLE;
+ALTER EVENT archive_old_audit_logs ENABLE;
+DROP EVENT IF EXISTS archive_old_audit_logs;
 ```
 
 ---
